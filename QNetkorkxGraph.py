@@ -41,11 +41,15 @@
 ##
 #############################################################################
 
+# TODO Dropdown menu listing the available layouts
+# TODO: Show labels on nodes
+# TODO: Option to Calculate the widest label an set that width for all the nodes
+
 
 import math
 
 from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import QPointF
+from PyQt4.QtCore import QPointF, QRect
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox
 import networkx as nx
 from scipy.interpolate import interp1d
@@ -207,11 +211,11 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             dy = line.dy()
             l = 2.0 * (dx * dx + dy * dy)
             if l > 0:
-                xvel += (dx * 150.0) / l
-                yvel += (dy * 150.0) / l
+                xvel += (dx * (10*self.size)) / l
+                yvel += (dy * (10*self.size)) / l
 
         # Now subtract all forces pulling items together.
-        weight = (len(self.edgeList) + 1) * self.size/1.5
+        weight = (len(self.edgeList) + 1) * self.size
         for edge in self.edgeList:
             if edge.sourceNode() is self:
                 pos = self.mapFromItem(edge.destNode(), 0, 0)
@@ -219,8 +223,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
                 pos = self.mapFromItem(edge.sourceNode(), 0, 0)
             xvel += pos.x() / weight
             yvel += pos.y() / weight
+
         # Invisible Node pulling to the center
-        pos = self.mapFromItem(self, 0, 0)
         xvel -= (self.pos().x()/2) / weight
         yvel -= (self.pos().y()/2) / weight
 
@@ -287,6 +291,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         painter.setPen(pen)
         # Draw the circle
         painter.drawEllipse(x_coord, y_coord, width, height)
+        painter.setPen(QtCore.Qt.white)
+        painter.drawText(QRect(x_coord,y_coord, width, height), QtCore.Qt.AlignCenter, "Qt")
         painter.restore()
         # self.setOpacity(0.5)
 
