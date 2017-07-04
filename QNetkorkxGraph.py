@@ -175,7 +175,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.size = 40
         self.edge_width = 4
         self.label = label
-        self.animate = False
+        self.animate = True
 
 
     def type(self):
@@ -504,11 +504,13 @@ class QNetworkxControler():
         for node in self.graph.nodes():
             self.graph_widget.add_node(node)
 
+        pos = nx.random_layout(self.graph)
+        self.graph_widget.set_node_positions(pos)
+
         for edge in self.graph.edges():
             self.graph_widget.add_edge(node_tuple=edge)
 
-        pos = nx.spring_layout(self.graph)
-        self.graph_widget.set_node_positions(pos)
+
 
     def get_widget(self):
         return self.graph_widget
@@ -552,7 +554,7 @@ class QNetworkxControler():
         #
         # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
         # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
-        return nx.spring_layout(self.graph)
+        # return nx.spring_layout(self.graph)
 
 if __name__ == '__main__':
     import sys
