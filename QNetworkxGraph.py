@@ -53,7 +53,7 @@ import math
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QPointF, QRect, QString
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox, \
-    QFont, QFontMetrics
+    QFont, QFontMetrics, QComboBox
 import networkx as nx
 from scipy.interpolate import interp1d
 
@@ -326,6 +326,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def set_size(self, new_size):
         self.prepareGeometryChange()
         self.size = new_size
+        self.calculateForces()
         self.advance()
         self.update()
 
@@ -479,15 +480,19 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         for node in nodes:
             node.set_size(size)
             node.update()
+            node.calculateForces()
+            node.advance()
         for edge in edges:
             edge.set_node_size(size)
             edge.adjust()
+
 
 
     def animate_nodes(self, animate):
         for node in self.nodes.values():
             node.animate_node(animate)
             if animate:
+                node.calculateForces()
                 node.advance()
 
     def set_node_positions(self, position_dict):
@@ -504,6 +509,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             node_label_width_list.append(node.node_label_width())
         max_width = max(node_label_width_list)
         self.set_node_size(max_width)
+        return max_width
 
     def scaleView(self, scaleFactor):
         factor = self.matrix().scale(scaleFactor, scaleFactor).mapRect(QtCore.QRectF(0, 0, 1, 1)).width()
@@ -542,25 +548,28 @@ class QNetworkxControler():
 
     def set_graph(self, G, initial_pos = None):
         self.graph = G
+
         for node in self.graph.nodes():
             self.graph_widget.add_node(node)
-
-        if not initial_pos:
-            initial_pos = nx.circular_layout(self.graph)
-
-        self.networkx_positions_to_pixels(initial_pos)
-        self.graph_widget.set_node_positions(initial_pos)
 
         for edge in self.graph.edges():
             self.graph_widget.add_edge(node_tuple=edge)
 
+        if not initial_pos:
+            initial_pos = nx.circular_layout(self.graph)
+
+        initial_pos = self.networkx_positions_to_pixels(initial_pos)
+        self.graph_widget.set_node_positions(initial_pos)
+
     def networkx_positions_to_pixels(self, position_dict):
+        pixel_positions = {}
         minimum = min(map(min, zip(*position_dict.values())))
         maximum = max(map(max, zip(*position_dict.values())))
         for node, pos in position_dict.items():
             s_r = self.graph_widget.scene.sceneRect()
             m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
-            position_dict[node] = (m(pos[0]), m(pos[1]))
+            pixel_positions[node] = (m(pos[0]), m(pos[1]))
+        return pixel_positions
 
     def get_widget(self):
         return self.graph_widget
@@ -634,12 +643,28 @@ class QNetworkxWindowExample(QMainWindow):
         self.animation_checkbox = QCheckBox("Animate graph")
         self.horizontal_layout.addWidget(self.animation_checkbox)
         self.animation_checkbox.stateChanged.connect(self.graph_widget.animate_nodes)
-
         self.graph_model = nx.circular_ladder_graph(20)
         initial_positions = nx.circular_layout(self.graph_model)
         self.network_controler.set_graph(self.graph_model, initial_positions)
+        self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
+        current_width = self.graph_widget.resize_nodes_to_minimum_label_width()
+        self.slider.setValue(current_width)
 
-        self.graph_widget.resize_nodes_to_minimum_label_width()
+        self.layouts_combo = QComboBox()
+        import networkx.drawing.layout as ly
+        for function in dir(ly):
+            if "_layout" in function and callable(getattr(ly,function)) and function[0] != '_':
+                self.layouts_combo.addItem(function)
+        self.main_layout.addWidget(self.layouts_combo)
+        self.layouts_combo.currentIndexChanged.connect(self.on_change_layout)
+
+    def on_change_layout(self, index):
+        item = self.layouts_combo.itemText(index)
+        import networkx.drawing.layout as ly
+        function = getattr(ly,str(item))
+        pos = function(self.graph_model)
+        pos = self.network_controler.networkx_positions_to_pixels(pos)
+        self.graph_widget.set_node_positions(pos)
 
 if __name__ == '__main__':
     import sys
