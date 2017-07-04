@@ -46,7 +46,7 @@ import math
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QPointF
-from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush
+from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox
 import networkx as nx
 from scipy.interpolate import interp1d
 
@@ -470,6 +470,8 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     def animate_nodes(self, animate):
         for node in self.nodes.values():
             node.animate_node(animate)
+            if animate:
+                node.advance()
 
     def set_node_positions(self, position_dict):
 
@@ -593,11 +595,17 @@ if __name__ == '__main__':
     graph_widget = network_controler.get_widget()
     graph_widget.set_node_size(40)
     main_layout.addWidget(graph_widget)
+
+    horizontal_layout = QHBoxLayout()
+    main_layout.addLayout(horizontal_layout)
     slider = QSlider(QtCore.Qt.Horizontal)
     slider.setMaximum(200)
     slider.setMinimum(10)
     slider.valueChanged.connect(graph_widget.set_node_size)
-    main_layout.addWidget(slider)
+    horizontal_layout.addWidget(slider)
+    animation_checkbox = QCheckBox("Animate graph")
+    horizontal_layout.addWidget(animation_checkbox)
+    animation_checkbox.stateChanged.connect(graph_widget.animate_nodes)
     window.showMaximized()
 
     sys.exit(app.exec_())
