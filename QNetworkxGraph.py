@@ -42,10 +42,10 @@
 #############################################################################
 
 # TODO Dropdown menu listing the available layouts
-# TODO: Show labels on nodes
-# TODO: Option to Calculate the widest label an set that width for all the nodes
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
-#
+
+# Done: Show labels on nodes
+# Done: Option to Calculate the widest label and set that width for all the nodes
 
 
 import math
