@@ -45,6 +45,9 @@
 import math
 
 from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import QPointF
+from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush
+import networkx as nx
 
 
 class QEdgeGraphicItem(QtGui.QGraphicsItem):
@@ -63,6 +66,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         self.setAcceptedMouseButtons(QtCore.Qt.NoButton)
         self.source = sourceNode
         self.dest = destNode
+        self.node_size = 10
         self.source.addEdge(self)
         self.dest.addEdge(self)
         self.adjust()
@@ -94,9 +98,9 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
         self.prepareGeometryChange()
 
-        if length > 40.0:
-            edgeOffset = QtCore.QPointF((line.dx() * 20) / length,
-                                        (line.dy() * 20) / length)
+        if length > self.node_size:
+            edgeOffset = QtCore.QPointF((line.dx() * (self.node_size/2)) / length,
+                                        (line.dy() * (self.node_size/2)) / length)
 
             self.sourcePoint = line.p1() + edgeOffset
             self.destPoint = line.p2() - edgeOffset
@@ -150,12 +154,14 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         painter.drawPolygon(QtGui.QPolygonF([line.p1(), sourceArrowP1, sourceArrowP2]))
         painter.drawPolygon(QtGui.QPolygonF([line.p2(), destArrowP1, destArrowP2]))
 
-
+    def set_node_size(self, new_size):
+        self.node_size = new_size
+        self.update()
 
 class QNodeGraphicItem(QtGui.QGraphicsItem):
     Type = QtGui.QGraphicsItem.UserType + 1
 
-    def __init__(self, graphWidget):
+    def __init__(self, graphWidget, label):
         super(QNodeGraphicItem, self).__init__()
 
         self.graph = graphWidget
@@ -168,6 +174,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.setZValue(1)
         self.size = 40
         self.edge_width = 4
+        self.label = label
+        self.animate = False
 
 
     def type(self):
@@ -210,6 +218,10 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
                 pos = self.mapFromItem(edge.sourceNode(), 0, 0)
             xvel += pos.x() / weight
             yvel += pos.y() / weight
+        # Invisible Node pulling to the center
+        pos = self.mapFromItem(self, 0, 0)
+        xvel -= (self.pos().x()/2) / weight
+        yvel -= (self.pos().y()/2) / weight
 
         if QtCore.qAbs(xvel) < 0.1 and QtCore.qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
@@ -220,11 +232,14 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.newPos.setY(min(max(self.newPos.y(), sceneRect.top() + 10), sceneRect.bottom() - 10))
 
     def advance(self):
-        if self.newPos == self.pos():
-            return False
+        if self.animate:
+            if self.newPos == self.pos():
+                return False
 
-        self.setPos(self.newPos)
-        return True
+            self.setPos(self.newPos)
+            return True
+        else:
+            return False
 
     def boundingRect(self):
         adjust = 2.0
@@ -290,71 +305,68 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.update()
         super(QNodeGraphicItem, self).mouseReleaseEvent(event)
 
+    def set_size(self, new_size):
+        self.prepareGeometryChange()
+        self.size = new_size
+        self.update()
+        self.graph.itemMoved()
 
-class QNetworkxGraph(QtGui.QGraphicsView):
+
+class QNetworkxWidget(QtGui.QGraphicsView):
     def __init__(self):
-        super(QNetworkxGraph, self).__init__()
+        super(QNetworkxWidget, self).__init__()
 
         self.timerId = 0
 
-        scene = QtGui.QGraphicsScene(self)
-        scene.setItemIndexMethod(QtGui.QGraphicsScene.NoIndex)
-        scene.setSceneRect(-400, -400, 800, 800)
-        self.setScene(scene)
+        self.scene = QtGui.QGraphicsScene(self)
+        self.scene.setItemIndexMethod(QtGui.QGraphicsScene.NoIndex)
+        self.scene.setSceneRect(-400, -400, 800, 800)
+        self.setScene(self.scene)
         self.setCacheMode(QtGui.QGraphicsView.CacheBackground)
         self.setViewportUpdateMode(QtGui.QGraphicsView.BoundingRectViewportUpdate)
         self.setRenderHint(QtGui.QPainter.Antialiasing)
         self.setTransformationAnchor(QtGui.QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QtGui.QGraphicsView.AnchorViewCenter)
 
-        node1 = QNodeGraphicItem(self)
-        node2 = QNodeGraphicItem(self)
-        node3 = QNodeGraphicItem(self)
-        node4 = QNodeGraphicItem(self)
-        self.centerNode = QNodeGraphicItem(self)
-        node6 = QNodeGraphicItem(self)
-        node7 = QNodeGraphicItem(self)
-        node8 = QNodeGraphicItem(self)
-        node9 = QNodeGraphicItem(self)
-        scene.addItem(node1)
-        scene.addItem(node2)
-        scene.addItem(node3)
-        scene.addItem(node4)
-        scene.addItem(self.centerNode)
-        scene.addItem(node6)
-        scene.addItem(node7)
-        scene.addItem(node8)
-        scene.addItem(node9)
-        scene.addItem(QEdgeGraphicItem(node1, node2))
-        scene.addItem(QEdgeGraphicItem(node2, node3))
-        scene.addItem(QEdgeGraphicItem(node2, self.centerNode))
-        scene.addItem(QEdgeGraphicItem(node3, node6))
-        scene.addItem(QEdgeGraphicItem(node4, node1))
-        scene.addItem(QEdgeGraphicItem(node4, self.centerNode))
-        scene.addItem(QEdgeGraphicItem(self.centerNode, node6))
-        scene.addItem(QEdgeGraphicItem(self.centerNode, node8))
-        scene.addItem(QEdgeGraphicItem(node6, node9))
-        scene.addItem(QEdgeGraphicItem(node7, node4))
-        scene.addItem(QEdgeGraphicItem(node8, node7))
-        scene.addItem(QEdgeGraphicItem(node9, node8))
-
-        node1.setPos(-50, -50)
-        node2.setPos(0, -50)
-        node3.setPos(50, -50)
-        node4.setPos(-50, 0)
-        self.centerNode.setPos(0, 0)
-        node6.setPos(50, 0)
-        node7.setPos(-50, 50)
-        node8.setPos(0, 50)
-        node9.setPos(50, 50)
-
         self.scale(0.8, 0.8)
         self.setMinimumSize(400, 400)
         self.setWindowTitle("Elastic Nodes")
 
+        self.nodes = {}
+        self.edges = {}
+
     def itemMoved(self):
         if not self.timerId:
             self.timerId = self.startTimer(1000 / 25)
+
+
+    def add_node(self, label=None):
+        if not label:
+            node_label = "Node %s" % len(self.nodes)
+        else:
+            node_label = label
+        node = QNodeGraphicItem(self, node_label)
+        self.nodes[node_label] = node
+        self.scene.addItem(node)
+
+
+    def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None):
+        if node_tuple:
+            node1_str, node2_str = node_tuple
+            if node1_str in self.nodes and node2_str in self.nodes:
+                node1 = self.nodes[node1_str]
+                node2 = self.nodes[node2_str]
+        elif first_node and second_node:
+            node1= first_node
+            node2 = second_node
+
+        if not label:
+            label = "%s-%s" % (node1.label, node2.label)
+        edge = QEdgeGraphicItem(node1, node2)
+        if edge:
+            self.edges[label] = edge
+            self.scene.addItem(edge)
+
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -376,10 +388,10 @@ class QNetworkxGraph(QtGui.QGraphicsView):
                 if isinstance(item, QNodeGraphicItem):
                     item.setPos(-150 + QtCore.qrand() % 300, -150 + QtCore.qrand() % 300)
         else:
-            super(QNetworkxGraph, self).keyPressEvent(event)
+            super(QNetworkxWidget, self).keyPressEvent(event)
 
     def timerEvent(self, event):
-        nodes = [item for item in self.scene().items() if isinstance(item, QNodeGraphicItem)]
+        nodes = self.nodes.values()
 
         for node in nodes:
             node.calculateForces()
@@ -396,17 +408,23 @@ class QNetworkxGraph(QtGui.QGraphicsView):
     def wheelEvent(self, event):
         self.scaleView(math.pow(2.0, -event.delta() / 240.0))
 
+    def resizeEvent(self, event):
+        QGraphicsView.resizeEvent(self, event)
+        # self.centerOn(self.mapToScene(0, 0))
+        self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
+
+
     def drawBackground(self, painter, rect):
         # Shadow.
         sceneRect = self.sceneRect()
-        rightShadow = QtCore.QRectF(sceneRect.right(), sceneRect.top() + 5, 5,
-                                    sceneRect.height())
-        bottomShadow = QtCore.QRectF(sceneRect.left() + 5, sceneRect.bottom(),
-                                     sceneRect.width(), 5)
-        if rightShadow.intersects(rect) or rightShadow.contains(rect):
-            painter.fillRect(rightShadow, QtCore.Qt.darkGray)
-        if bottomShadow.intersects(rect) or bottomShadow.contains(rect):
-            painter.fillRect(bottomShadow, QtCore.Qt.darkGray)
+        # rightShadow = QtCore.QRectF(sceneRect.right(), sceneRect.top() + 5, 5,
+        #                             sceneRect.height())
+        # bottomShadow = QtCore.QRectF(sceneRect.left() + 5, sceneRect.bottom(),
+        #                              sceneRect.width(), 5)
+        # if rightShadow.intersects(rect) or rightShadow.contains(rect):
+        #     painter.fillRect(rightShadow, QtCore.Qt.darkGray)
+        # if bottomShadow.intersects(rect) or bottomShadow.contains(rect):
+        #     painter.fillRect(bottomShadow, QtCore.Qt.darkGray)
 
         # Fill.
         gradient = QtGui.QLinearGradient(sceneRect.topLeft(),
@@ -416,6 +434,8 @@ class QNetworkxGraph(QtGui.QGraphicsView):
         painter.fillRect(rect.intersect(sceneRect), QtGui.QBrush(QtCore.Qt.black))
         painter.setBrush(QtCore.Qt.NoBrush)
         painter.drawRect(sceneRect)
+        self.scene.addEllipse(0, 0, 20, 20,
+                          QPen(QtCore.Qt.white), QBrush(QtCore.Qt.SolidPattern))
 
         # # Text.
         # textRect = QtCore.QRectF(sceneRect.left() + 4, sceneRect.top() + 4,
@@ -433,9 +453,18 @@ class QNetworkxGraph(QtGui.QGraphicsView):
         # painter.drawText(textRect, message)
 
     def set_node_size(self, size):
-        nodes = [item for item in self.scene().items() if isinstance(item, QNodeGraphicItem)]
+        nodes = self.nodes.values()
+        edges = self.edges.values()
         for node in nodes:
             node.set_size(size)
+        for edge in edges:
+            edge.set_node_size(size)
+
+    def set_node_positions(self, position_dict):
+        for node_str, position in position_dict.items():
+            if node_str in self.nodes:
+                self.nodes[node_str].setPos(position[0],position[1])
+
 
     def scaleView(self, scaleFactor):
         factor = self.matrix().scale(scaleFactor, scaleFactor).mapRect(QtCore.QRectF(0, 0, 1, 1)).width()
@@ -461,13 +490,89 @@ class QNetworkxGraph(QtGui.QGraphicsView):
     #     self.node_positions = pos=nx.spring_layout(self.the_graph)
 
 
+class QNetworkxControler():
+    def __init__(self):
+        self.graph_widget = QNetworkxWidget()
+        self.graph = nx.Graph()
+        self.node_positions = self.construct_the_graph()
+
+    def construct_the_graph(self):
+        self.graph.add_nodes_from([1, 2, 3, 4])
+        self.graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
+        self.graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
+
+        for node in self.graph.nodes():
+            self.graph_widget.add_node(node)
+
+        for edge in self.graph.edges():
+            self.graph_widget.add_edge(node_tuple=edge)
+
+        pos = nx.spring_layout(self.graph)
+        self.graph_widget.set_node_positions(pos)
+
+    def get_widget(self):
+        return self.graph_widget
+
+        # scene.addItem(node2)
+        # scene.addItem(node3)
+        # scene.addItem(node4)
+        # scene.addItem(self.centerNode)
+        # scene.addItem(node6)
+        # scene.addItem(node7)
+        # scene.addItem(node8)
+        # scene.addItem(node9)
+        # scene.addItem()
+        # scene.addItem(QEdgeGraphicItem(node2, node3))
+        # scene.addItem(QEdgeGraphicItem(node2, self.centerNode))
+        # scene.addItem(QEdgeGraphicItem(node3, node6))
+        # scene.addItem(QEdgeGraphicItem(node4, node1))
+        # scene.addItem(QEdgeGraphicItem(node4, self.centerNode))
+        # scene.addItem(QEdgeGraphicItem(self.centerNode, node6))
+        # scene.addItem(QEdgeGraphicItem(self.centerNode, node8))
+        # scene.addItem(QEdgeGraphicItem(node6, node9))
+        # scene.addItem(QEdgeGraphicItem(node7, node4))
+        # scene.addItem(QEdgeGraphicItem(node8, node7))
+        # scene.addItem(QEdgeGraphicItem(node9, node8))
+        #
+        # node1.setPos(-50, -50)
+        # node2.setPos(0, -50)
+        # node3.setPos(50, -50)
+        # node4.setPos(-50, 0)
+        # self.centerNode.setPos(0, 0)
+        # node6.setPos(50, 0)
+        # node7.setPos(-50, 50)
+        # node8.setPos(0, 50)
+        # node9.setPos(50, 50)
+
+        # X = set(n for n, d in self.graph.nodes(data=True) if d['bipartite'] == 0)
+        # Y = set(self.graph) - X
+        #
+        # X = sorted(X, reverse=True)
+        # Y = sorted(Y, reverse=True)
+        #
+        # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
+        # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
+        return nx.spring_layout(self.graph)
+
 if __name__ == '__main__':
     import sys
 
     app = QtGui.QApplication(sys.argv)
     QtCore.qsrand(QtCore.QTime(0, 0, 0).secsTo(QtCore.QTime.currentTime()))
-
-    widget = QNetworkxGraph()
-    widget.show()
+    window = QMainWindow()
+    main_layout = QVBoxLayout()
+    main_widget = QWidget()
+    main_widget.setLayout(main_layout)
+    window.setCentralWidget(main_widget)
+    network_controler = QNetworkxControler()
+    graph_widget = network_controler.get_widget()
+    graph_widget.set_node_size(40)
+    main_layout.addWidget(graph_widget)
+    slider = QSlider(QtCore.Qt.Horizontal)
+    slider.setMaximum(200)
+    slider.setMinimum(10)
+    slider.valueChanged.connect(graph_widget.set_node_size)
+    main_layout.addWidget(slider)
+    window.showMaximized()
 
     sys.exit(app.exec_())
