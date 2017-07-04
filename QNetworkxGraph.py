@@ -41,12 +41,19 @@
 ##
 #############################################################################
 
+# TODO Dropdown menu listing the available layouts
+# TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
+
+# Done: Show labels on nodes
+# Done: Option to Calculate the widest label and set that width for all the nodes
+
 
 import math
 
 from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import QPointF
-from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush
+from PyQt4.QtCore import QPointF, QRect, QString
+from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox, \
+    QFont, QFontMetrics
 import networkx as nx
 from scipy.interpolate import interp1d
 
@@ -174,7 +181,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
         self.setZValue(1)
         self.size = 40
-        self.edge_width = 4
+        self.border_width = 4
         self.label = label
         self.animate = True
 
@@ -207,11 +214,11 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             dy = line.dy()
             l = 2.0 * (dx * dx + dy * dy)
             if l > 0:
-                xvel += (dx * 150.0) / l
-                yvel += (dy * 150.0) / l
+                xvel += (dx * (7*self.size)) / l
+                yvel += (dy * (7*self.size)) / l
 
         # Now subtract all forces pulling items together.
-        weight = (len(self.edgeList) + 1) * self.size/1.5
+        weight = (len(self.edgeList) + 1) * self.size
         for edge in self.edgeList:
             if edge.sourceNode() is self:
                 pos = self.mapFromItem(edge.destNode(), 0, 0)
@@ -219,10 +226,10 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
                 pos = self.mapFromItem(edge.sourceNode(), 0, 0)
             xvel += pos.x() / weight
             yvel += pos.y() / weight
+
         # Invisible Node pulling to the center
-        pos = self.mapFromItem(self, 0, 0)
-        xvel -= (self.pos().x()/2) / weight
-        yvel -= (self.pos().y()/2) / weight
+        xvel -= (self.pos().x()/2) / (weight/4)
+        yvel -= (self.pos().y()/2) / (weight/4)
 
         if QtCore.qAbs(xvel) < 0.1 and QtCore.qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
@@ -244,13 +251,13 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
 
     def boundingRect(self):
         adjust = 2.0
-        x_coord = y_coord = (-1*(self.size/2)) - self.edge_width
-        width = height = self.size+23+self.edge_width
+        x_coord = y_coord = (-1*(self.size/2)) - self.border_width
+        width = height = self.size+23+self.border_width
         return QtCore.QRectF(x_coord, y_coord , width,
                              height)
 
     def shape(self):
-        x_coord = y_coord = (-1 * (self.size / 2)) - self.edge_width
+        x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
         path = QtGui.QPainterPath()
         path.addEllipse(x_coord, y_coord, width, height)
@@ -273,12 +280,12 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             gradient.setColorAt(1, QtGui.QColor(QtCore.Qt.lightGray).light(120))
             gradient.setColorAt(0, QtGui.QColor(QtCore.Qt.black).light(120))
             pen = QtGui.QPen(QtCore.Qt.lightGray)
-            pen.setWidth(self.edge_width*2)
+            pen.setWidth(self.border_width * 2)
         else:
             gradient.setColorAt(0, QtCore.Qt.blue)
             gradient.setColorAt(1, QtCore.Qt.darkBlue)
             pen = QtGui.QPen(QtGui.QColor(200, 0, 100, 127))
-            pen.setWidth(self.edge_width)
+            pen.setWidth(self.border_width)
 
         # Fill with gradient
         painter.setBrush(QtGui.QBrush(QtGui.QColor(100, 0, 200, 127)))
@@ -287,8 +294,18 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         painter.setPen(pen)
         # Draw the circle
         painter.drawEllipse(x_coord, y_coord, width, height)
+        painter.setPen(QtCore.Qt.white)
+        painter.drawText(QRect(x_coord,y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
         painter.restore()
         # self.setOpacity(0.5)
+
+
+    def node_label_width(self):
+        font = QFont()
+        font.setFamily(font.defaultFamily())
+        fm = QFontMetrics(font)
+        label_width = fm.width(QString(str(self.label))) + self.border_width * 2 + 40
+        return label_width
 
     def itemChange(self, change, value):
         if change == QtGui.QGraphicsItem.ItemPositionHasChanged:
@@ -309,7 +326,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def set_size(self, new_size):
         self.prepareGeometryChange()
         self.size = new_size
-        self.graph.itemMoved()
+        self.advance()
         self.update()
 
     def animate_node(self, animate):
@@ -470,6 +487,8 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     def animate_nodes(self, animate):
         for node in self.nodes.values():
             node.animate_node(animate)
+            if animate:
+                node.advance()
 
     def set_node_positions(self, position_dict):
 
@@ -479,6 +498,12 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 node.setPos(position[0], position[1])
                 node.update()
 
+    def resize_nodes_to_minimum_label_width(self):
+        node_label_width_list = []
+        for node in self.nodes.values():
+            node_label_width_list.append(node.node_label_width())
+        max_width = max(node_label_width_list)
+        self.set_node_size(max_width)
 
     def scaleView(self, scaleFactor):
         factor = self.matrix().scale(scaleFactor, scaleFactor).mapRect(QtCore.QRectF(0, 0, 1, 1)).width()
@@ -512,7 +537,7 @@ class QNetworkxControler():
 
     def construct_the_graph(self):
         self.graph.add_nodes_from([1, 2, 3, 4])
-        self.graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
+        self.graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'Bite my shiny metal ass'])
         self.graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
 
         for node in self.graph.nodes():
@@ -593,11 +618,18 @@ if __name__ == '__main__':
     graph_widget = network_controler.get_widget()
     graph_widget.set_node_size(40)
     main_layout.addWidget(graph_widget)
+
+    horizontal_layout = QHBoxLayout()
+    main_layout.addLayout(horizontal_layout)
     slider = QSlider(QtCore.Qt.Horizontal)
+    graph_widget.resize_nodes_to_minimum_label_width()
     slider.setMaximum(200)
     slider.setMinimum(10)
     slider.valueChanged.connect(graph_widget.set_node_size)
-    main_layout.addWidget(slider)
+    horizontal_layout.addWidget(slider)
+    animation_checkbox = QCheckBox("Animate graph")
+    horizontal_layout.addWidget(animation_checkbox)
+    animation_checkbox.stateChanged.connect(graph_widget.animate_nodes)
     window.showMaximized()
 
     sys.exit(app.exec_())
