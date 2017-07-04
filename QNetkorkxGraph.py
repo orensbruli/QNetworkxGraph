@@ -48,6 +48,7 @@ from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QPointF
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush
 import networkx as nx
+from scipy.interpolate import interp1d
 
 
 class QEdgeGraphicItem(QtGui.QGraphicsItem):
@@ -308,8 +309,11 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def set_size(self, new_size):
         self.prepareGeometryChange()
         self.size = new_size
-        self.update()
         self.graph.itemMoved()
+        self.update()
+
+    def animate_node(self, animate):
+        self.animate = animate
 
 
 class QNetworkxWidget(QtGui.QGraphicsView):
@@ -457,13 +461,23 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         edges = self.edges.values()
         for node in nodes:
             node.set_size(size)
+            node.update()
         for edge in edges:
             edge.set_node_size(size)
+            edge.adjust()
+
+
+    def animate_nodes(self, animate):
+        for node in self.nodes.values():
+            node.animate_node(animate)
 
     def set_node_positions(self, position_dict):
+
         for node_str, position in position_dict.items():
             if node_str in self.nodes:
-                self.nodes[node_str].setPos(position[0],position[1])
+                node = self.nodes[node_str]
+                node.setPos(position[0], position[1])
+                node.update()
 
 
     def scaleView(self, scaleFactor):
@@ -504,13 +518,22 @@ class QNetworkxControler():
         for node in self.graph.nodes():
             self.graph_widget.add_node(node)
 
-        pos = nx.random_layout(self.graph)
+        pos = nx.circular_layout(self.graph)
+        self.nx_positions_to_pixels(pos)
         self.graph_widget.set_node_positions(pos)
+
+        self.graph_widget.animate_nodes(False)
 
         for edge in self.graph.edges():
             self.graph_widget.add_edge(node_tuple=edge)
 
-
+    def nx_positions_to_pixels(self, position_dict):
+        minimum = min(map(min, zip(*position_dict.values())))
+        maximum = max(map(max, zip(*position_dict.values())))
+        for node, pos in position_dict.items():
+            s_r = self.graph_widget.scene.sceneRect()
+            m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
+            position_dict[node] = (m(pos[0]), m(pos[1]))
 
     def get_widget(self):
         return self.graph_widget
