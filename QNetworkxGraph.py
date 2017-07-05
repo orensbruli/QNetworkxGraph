@@ -41,11 +41,19 @@
 ##
 #############################################################################
 
-# TODO Dropdown menu listing the available layouts
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
+# TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
+#       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
+# TODO: Create directed and not directed edges
+# TODO: Labels on edges
+# TODO: Physhic on label edges. Atraction to edge center, repulsion from near edges
+# TODO: Loop edges
+# TODO: contraction of a node (if its a tree an there's no loops)
+
 
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
+# Done: Combobox menu listing the available layouts
 
 
 import math
