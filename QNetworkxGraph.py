@@ -45,7 +45,6 @@
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
 # TODO: Create directed and not directed edges
-# TODO: Labels on edges
 # TODO: Physhic on label edges. Atraction to edge center, repulsion from near edges
 # TODO: Loop edges
 # TODO: contraction of a node (if its a tree an there's no loops)
@@ -54,6 +53,7 @@
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
 # Done: Combobox menu listing the available layouts
+# Done: Labels on edges
 
 
 import math
@@ -61,7 +61,7 @@ import math
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QPointF, QRect, QString
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox, \
-    QFont, QFontMetrics, QComboBox
+    QFont, QFontMetrics, QComboBox, QGraphicsTextItem
 import networkx as nx
 from scipy.interpolate import interp1d
 
@@ -72,7 +72,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
     Type = QtGui.QGraphicsItem.UserType + 2
 
-    def __init__(self, sourceNode, destNode):
+    def __init__(self, sourceNode, destNode, label=None):
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
@@ -80,12 +80,25 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         self.destPoint = QtCore.QPointF()
 
         self.setAcceptedMouseButtons(QtCore.Qt.NoButton)
+        self.setFlag(QtGui.QGraphicsItem.ItemIsMovable)
+        self.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
+        self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
         self.source = sourceNode
         self.dest = destNode
         self.node_size = 10
+        if not label:
+            if not sourceNode.label is None and not destNode.label is None:
+                label = "%s - %s" % (sourceNode.label, destNode.label)
+            else:
+                label = ''
+        self.label = QGraphicsTextItem(label, self)
+        self.label.setParentItem(self)
+        self.label.setDefaultTextColor(QtCore.Qt.white)
         self.source.addEdge(self)
         self.dest.addEdge(self)
         self.adjust()
+
+
 
     def type(self):
         return QEdgeGraphicItem.Type
@@ -123,14 +136,19 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         else:
             self.sourcePoint = line.p1()
             self.destPoint = line.p1()
+        self.setPos(self.mapToScene(self.boundingRect().center()))
+        self.update()
+
 
     def boundingRect(self):
+        # print "CALLED"
         if not self.source or not self.dest:
             return QtCore.QRectF()
 
         penWidth = 1.0
         extra = (penWidth + self.arrowSize) / 2.0
 
+        # return QtCore.QRectF(-100,-100,200,200)
         return QtCore.QRectF(self.sourcePoint,
                              QtCore.QSizeF(self.destPoint.x() - self.sourcePoint.x(),
                                            self.destPoint.y() - self.sourcePoint.y())).normalized().adjusted(-extra,
@@ -169,6 +187,17 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         painter.setBrush(QtCore.Qt.white)
         painter.drawPolygon(QtGui.QPolygonF([line.p1(), sourceArrowP1, sourceArrowP2]))
         painter.drawPolygon(QtGui.QPolygonF([line.p2(), destArrowP1, destArrowP2]))
+        # if self.label:
+        #     # Calculate edge center
+        #     # Calculate label width
+        #     # Draw label background
+        #     # Draw label text
+        #     painter.drawText(QRect(x_coord, y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
+        # QtGui.QGraphicsItem.paint(self,painter,option,widget)
+        # painter.setBrush(QtCore.Qt.NoBrush)
+        # painter.setPen(QtCore.Qt.red)
+        # painter.drawRect(self.boundingRect())
+        # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
 
     def set_node_size(self, new_size):
         self.node_size = new_size
@@ -306,6 +335,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         painter.drawText(QRect(x_coord,y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
         painter.restore()
         # self.setOpacity(0.5)
+        # print "Node: " + str(self.scenePos().x()) + " " + str(self.scenePos().y())
 
 
     def node_label_width(self):
@@ -328,7 +358,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         super(QNodeGraphicItem, self).mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        self.update()
+        # self.update()
         super(QNodeGraphicItem, self).mouseReleaseEvent(event)
 
     def set_size(self, new_size):
@@ -396,6 +426,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         if edge:
             self.edges[label] = edge
             self.scene.addItem(edge)
+            # self.scene.addItem(edge.label)
 
 
     def keyPressEvent(self, event):
@@ -464,7 +495,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         painter.fillRect(rect.intersect(sceneRect), QtGui.QBrush(QtCore.Qt.black))
         painter.setBrush(QtCore.Qt.NoBrush)
         painter.drawRect(sceneRect)
-        self.scene.addEllipse(0, 0, 20, 20,
+        self.scene.addEllipse(-10, -10, 20, 20,
                           QPen(QtCore.Qt.white), QBrush(QtCore.Qt.SolidPattern))
 
         # # Text.
@@ -651,7 +682,7 @@ class QNetworkxWindowExample(QMainWindow):
         self.animation_checkbox = QCheckBox("Animate graph")
         self.horizontal_layout.addWidget(self.animation_checkbox)
         self.animation_checkbox.stateChanged.connect(self.graph_widget.animate_nodes)
-        self.graph_model = nx.circular_ladder_graph(20)
+        self.graph_model = nx.circular_ladder_graph(50)
         initial_positions = nx.circular_layout(self.graph_model)
         self.network_controler.set_graph(self.graph_model, initial_positions)
         self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
