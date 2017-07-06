@@ -61,8 +61,8 @@ import math
 import networkx as nx
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QString
-from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox, \
-    QFont, QFontMetrics, QComboBox, QGraphicsTextItem
+from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
+    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem
 from scipy.interpolate import interp1d
 
 
@@ -473,7 +473,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         nodes = self.nodes.values()
 
         for node in nodes:
-            node.calculateForces()
+            node.calculate_forces()
 
         items_moved = False
         for node in nodes:
@@ -536,7 +536,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         for node in nodes:
             node.set_size(size)
             node.update()
-            node.calculateForces()
+            node.calculate_forces()
             node.advance()
         for edge in edges:
             edge.set_node_size(size)
@@ -546,7 +546,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         for node in self.nodes.values():
             node.animate_node(animate)
             if animate:
-                node.calculateForces()
+                node.calculate_forces()
                 node.advance()
 
     def set_node_positions(self, position_dict):
