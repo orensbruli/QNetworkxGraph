@@ -121,21 +121,22 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
         line = QtCore.QLineF(self.mapFromItem(self.source, 0, 0),
                              self.mapFromItem(self.dest, 0, 0))
-        length = line.length()
+        nodes_center_distance = line.length()
 
         self.prepareGeometryChange()
 
-        if length > self.node_size:
-            edge_offset = QtCore.QPointF((line.dx() * (self.node_size/2)) / length,
-                                         (line.dy() * (self.node_size/2)) / length)
+        source_node_radius = self.source.size/2 + self.source.border_width /2
+        dest_node_radius = self.dest.size / 2 + self.dest.border_width /2
+        if nodes_center_distance > source_node_radius+dest_node_radius:
+            edge_offset = QtCore.QPointF((line.dx() * source_node_radius) / nodes_center_distance,
+                                         (line.dy() * dest_node_radius) / nodes_center_distance)
 
             self.source_point = line.p1() + edge_offset
             self.dest_point = line.p2() - edge_offset
         else:
             self.source_point = line.p1()
             self.dest_point = line.p1()
-        self.setPos(self.mapToScene(self.boundingRect().center()))
-        self.update()
+        self.setPos(self.mapToParent(self.boundingRect().center()))
 
     def boundingRect(self):
         # print "CALLED"
@@ -148,10 +149,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # return QtCore.QRectF(-100,-100,200,200)
         return QtCore.QRectF(self.source_point,
                              QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
-                                           self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
-                                                                                                               -extra,
-                                                                                                               extra,
-                                                                                                               extra)
+                                           self.dest_point.y() - self.source_point.y())).normalized()
 
     def paint(self, painter, option, widget):
         if not self.source or not self.dest:
@@ -219,10 +217,6 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # painter.drawRect(self.boundingRect())
         # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
 
-    def set_node_size(self, new_size):
-        self.node_size = new_size
-        self.update()
-
 
 class QNodeGraphicItem(QtGui.QGraphicsItem):
     Type = QtGui.QGraphicsItem.UserType + 1
@@ -240,7 +234,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.setZValue(1)
         self.size = 40
         self.border_width = 4
-        self.label = QGraphicsTextItem(str(label), self)
+        self.label = QGraphicsTextItem(str(label))
         self.label.setParentItem(self)
         self.label.setDefaultTextColor(QtCore.Qt.white)
         rect = self.label.boundingRect()
@@ -364,7 +358,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         font = QFont()
         font.setFamily(font.defaultFamily())
         fm = QFontMetrics(font)
-        label_width = fm.width(QString(str(self.label))) + self.border_width * 2 + 40
+        label_width = fm.width(QString(str(self.label.toPlainText()))) + self.border_width * 2 + 40
         return label_width
 
     def itemChange(self, change, value):
@@ -380,7 +374,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         super(QNodeGraphicItem, self).mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        # self.update()
+        self.update()
         super(QNodeGraphicItem, self).mouseReleaseEvent(event)
 
     def set_size(self, new_size):
@@ -535,11 +529,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         edges = self.edges.values()
         for node in nodes:
             node.set_size(size)
-            node.update()
-            node.calculate_forces()
-            node.advance()
         for edge in edges:
-            edge.set_node_size(size)
             edge.adjust()
 
     def animate_nodes(self, animate):
@@ -550,12 +540,14 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 node.advance()
 
     def set_node_positions(self, position_dict):
-
         for node_str, position in position_dict.items():
             if node_str in self.nodes:
                 node = self.nodes[node_str]
                 node.setPos(position[0], position[1])
                 node.update()
+                for edge in node.edges():
+                    edge.adjust()
+                    edge.update()
 
     def resize_nodes_to_minimum_label_width(self):
         node_label_width_list = []
@@ -698,7 +690,7 @@ class QNetworkxWindowExample(QMainWindow):
         self.animation_checkbox = QCheckBox("Animate graph")
         self.horizontal_layout.addWidget(self.animation_checkbox)
         self.animation_checkbox.stateChanged.connect(self.graph_widget.animate_nodes)
-        self.graph_model = nx.circular_ladder_graph(4)
+        self.graph_model = nx.complete_graph(3)
         initial_positions = nx.circular_layout(self.graph_model)
         self.network_controller.set_graph(self.graph_model, initial_positions)
         self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
