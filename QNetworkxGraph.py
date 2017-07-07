@@ -53,7 +53,7 @@ import math
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QPointF, QRect, QString
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, QCheckBox, \
-    QFont, QFontMetrics
+    QFont, QFontMetrics, QComboBox
 import networkx as nx
 from scipy.interpolate import interp1d
 
@@ -326,6 +326,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def set_size(self, new_size):
         self.prepareGeometryChange()
         self.size = new_size
+        self.calculateForces()
         self.advance()
         self.update()
 
@@ -362,7 +363,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
 
 
     def add_node(self, label=None):
-        if not label:
+        if label == None:
             node_label = "Node %s" % len(self.nodes)
         else:
             node_label = label
@@ -479,15 +480,19 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         for node in nodes:
             node.set_size(size)
             node.update()
+            node.calculateForces()
+            node.advance()
         for edge in edges:
             edge.set_node_size(size)
             edge.adjust()
+
 
 
     def animate_nodes(self, animate):
         for node in self.nodes.values():
             node.animate_node(animate)
             if animate:
+                node.calculateForces()
                 node.advance()
 
     def set_node_positions(self, position_dict):
@@ -504,6 +509,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             node_label_width_list.append(node.node_label_width())
         max_width = max(node_label_width_list)
         self.set_node_size(max_width)
+        return max_width
 
     def scaleView(self, scaleFactor):
         factor = self.matrix().scale(scaleFactor, scaleFactor).mapRect(QtCore.QRectF(0, 0, 1, 1)).width()
@@ -533,32 +539,37 @@ class QNetworkxControler():
     def __init__(self):
         self.graph_widget = QNetworkxWidget()
         self.graph = nx.Graph()
-        self.node_positions = self.construct_the_graph()
+        # self.node_positions = self.construct_the_graph()
 
-    def construct_the_graph(self):
-        self.graph.add_nodes_from([1, 2, 3, 4])
-        self.graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'Bite my shiny metal ass'])
-        self.graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
+
+    def delete_graph(self):
+        self.graph_widget.delete_graph()
+        self.graph = None
+
+    def set_graph(self, G, initial_pos = None):
+        self.graph = G
 
         for node in self.graph.nodes():
             self.graph_widget.add_node(node)
 
-        pos = nx.circular_layout(self.graph)
-        self.nx_positions_to_pixels(pos)
-        self.graph_widget.set_node_positions(pos)
-
-        self.graph_widget.animate_nodes(False)
-
         for edge in self.graph.edges():
             self.graph_widget.add_edge(node_tuple=edge)
 
-    def nx_positions_to_pixels(self, position_dict):
+        if not initial_pos:
+            initial_pos = nx.circular_layout(self.graph)
+
+        initial_pos = self.networkx_positions_to_pixels(initial_pos)
+        self.graph_widget.set_node_positions(initial_pos)
+
+    def networkx_positions_to_pixels(self, position_dict):
+        pixel_positions = {}
         minimum = min(map(min, zip(*position_dict.values())))
         maximum = max(map(max, zip(*position_dict.values())))
         for node, pos in position_dict.items():
             s_r = self.graph_widget.scene.sceneRect()
             m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
-            position_dict[node] = (m(pos[0]), m(pos[1]))
+            pixel_positions[node] = (m(pos[0]), m(pos[1]))
+        return pixel_positions
 
     def get_widget(self):
         return self.graph_widget
@@ -604,32 +615,63 @@ class QNetworkxControler():
         # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
         # return nx.spring_layout(self.graph)
 
+class QNetworkxWindowExample(QMainWindow):
+    def __init__(self, parent=None):
+        super(QNetworkxWindowExample, self).__init__(parent)
+
+        self.main_layout = QVBoxLayout()
+
+        self.main_widget = QWidget()
+        self.main_widget.setLayout(self.main_layout)
+
+        self.setCentralWidget(self.main_widget)
+        self.network_controler = QNetworkxControler()
+
+        self.graph_widget = self.network_controler.get_widget()
+        self.graph_widget.set_node_size(40)
+        self.main_layout.addWidget(self.graph_widget)
+
+        self.horizontal_layout = QHBoxLayout()
+        self.main_layout.addLayout(self.horizontal_layout)
+
+        self.slider = QSlider(QtCore.Qt.Horizontal)
+        self.slider.setMaximum(200)
+        self.slider.setMinimum(10)
+        self.slider.valueChanged.connect(self.graph_widget.set_node_size)
+        self.horizontal_layout.addWidget(self.slider)
+
+        self.animation_checkbox = QCheckBox("Animate graph")
+        self.horizontal_layout.addWidget(self.animation_checkbox)
+        self.animation_checkbox.stateChanged.connect(self.graph_widget.animate_nodes)
+        self.graph_model = nx.circular_ladder_graph(20)
+        initial_positions = nx.circular_layout(self.graph_model)
+        self.network_controler.set_graph(self.graph_model, initial_positions)
+        self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
+        current_width = self.graph_widget.resize_nodes_to_minimum_label_width()
+        self.slider.setValue(current_width)
+
+        self.layouts_combo = QComboBox()
+        import networkx.drawing.layout as ly
+        for function in dir(ly):
+            if "_layout" in function and callable(getattr(ly,function)) and function[0] != '_':
+                self.layouts_combo.addItem(function)
+        self.main_layout.addWidget(self.layouts_combo)
+        self.layouts_combo.currentIndexChanged.connect(self.on_change_layout)
+
+    def on_change_layout(self, index):
+        item = self.layouts_combo.itemText(index)
+        import networkx.drawing.layout as ly
+        function = getattr(ly,str(item))
+        pos = function(self.graph_model)
+        pos = self.network_controler.networkx_positions_to_pixels(pos)
+        self.graph_widget.set_node_positions(pos)
+
 if __name__ == '__main__':
     import sys
 
     app = QtGui.QApplication(sys.argv)
     QtCore.qsrand(QtCore.QTime(0, 0, 0).secsTo(QtCore.QTime.currentTime()))
-    window = QMainWindow()
-    main_layout = QVBoxLayout()
-    main_widget = QWidget()
-    main_widget.setLayout(main_layout)
-    window.setCentralWidget(main_widget)
-    network_controler = QNetworkxControler()
-    graph_widget = network_controler.get_widget()
-    graph_widget.set_node_size(40)
-    main_layout.addWidget(graph_widget)
-
-    horizontal_layout = QHBoxLayout()
-    main_layout.addLayout(horizontal_layout)
-    slider = QSlider(QtCore.Qt.Horizontal)
-    graph_widget.resize_nodes_to_minimum_label_width()
-    slider.setMaximum(200)
-    slider.setMinimum(10)
-    slider.valueChanged.connect(graph_widget.set_node_size)
-    horizontal_layout.addWidget(slider)
-    animation_checkbox = QCheckBox("Animate graph")
-    horizontal_layout.addWidget(animation_checkbox)
-    animation_checkbox.stateChanged.connect(graph_widget.animate_nodes)
+    window = QNetworkxWindowExample()
     window.showMaximized()
 
     sys.exit(app.exec_())
