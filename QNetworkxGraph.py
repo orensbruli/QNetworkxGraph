@@ -1,46 +1,6 @@
 #!/usr/bin/env python
 
 
-#############################################################################
-##
-## Copyright (C) 2010 Riverbank Computing Limited.
-## Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
-## All rights reserved.
-##
-## This file is part of the examples of PyQt.
-##
-## $QT_BEGIN_LICENSE:BSD$
-## You may use this file under the terms of the BSD license as follows:
-##
-## "Redistribution and use in source and binary forms, with or without
-## modification, are permitted provided that the following conditions are
-## met:
-##   * Redistributions of source code must retain the above copyright
-##     notice, this list of conditions and the following disclaimer.
-##   * Redistributions in binary form must reproduce the above copyright
-##     notice, this list of conditions and the following disclaimer in
-##     the documentation and/or other materials provided with the
-##     distribution.
-##   * Neither the name of Nokia Corporation and its Subsidiary(-ies) nor
-##     the names of its contributors may be used to endorse or promote
-##     products derived from this software without specific prior written
-##     permission.
-##
-## THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-## "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-## LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-## A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-## OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-## SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-## LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-## DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-## THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-## $QT_END_LICENSE$
-##
-#############################################################################
-
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
@@ -48,7 +8,9 @@
 # TODO: Physhic on label edges. Atraction to edge center, repulsion from near edges
 # TODO: Loop edges
 # TODO: contraction of a node (if its a tree an there's no loops)
-
+# TODO: Add methods to attach context menus to the items of the graph
+# TODO: Add _logger to the classes of the library
+# TODO: Context menu on edges depend on the bounding rect, so it's very large
 
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
@@ -58,12 +20,30 @@
 
 import math
 
+import logging
 import networkx as nx
 from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import QString
+from PyQt4.QtCore import QString, QPointF, Qt, QRectF
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
-    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem
+    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker
 from scipy.interpolate import interp1d
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+file_handler = logging.FileHandler('QNetworkxGraph.log')
+file_handler.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+current_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(current_format)
+console_handler.setFormatter(current_format)
+# add the handlers to the logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+logger.info('Created main logger')
 
 
 class QEdgeGraphicItem(QtGui.QGraphicsItem):
@@ -73,6 +53,8 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
     Type = QtGui.QGraphicsItem.UserType + 2
 
     def __init__(self, source_node, dest_node, label=None):
+        self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
+        self._logger.setLevel(logging.DEBUG)
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
@@ -81,8 +63,8 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
         self.setAcceptedMouseButtons(QtCore.Qt.NoButton)
         self.setFlag(QtGui.QGraphicsItem.ItemIsMovable)
-        self.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
-        self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
+        # self.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
+        # self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
         self.source = source_node
         self.dest = dest_node
         self.node_size = 10
@@ -97,6 +79,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         self.source.add_edge(self)
         self.dest.add_edge(self)
         self.adjust()
+        self.menu = None
 
     def type(self):
         return QEdgeGraphicItem.Type
@@ -119,15 +102,21 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         if not self.source or not self.dest:
             return
 
+        sceneLine = QtCore.QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
+
+        sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
+
+        self.setPos(sceneLine_center)
+
         line = QtCore.QLineF(self.mapFromItem(self.source, 0, 0),
                              self.mapFromItem(self.dest, 0, 0))
         nodes_center_distance = line.length()
 
         self.prepareGeometryChange()
 
-        source_node_radius = self.source.size/2 + self.source.border_width /2
-        dest_node_radius = self.dest.size / 2 + self.dest.border_width /2
-        if nodes_center_distance > source_node_radius+dest_node_radius:
+        source_node_radius = self.source.boundingRect().width() / 2
+        dest_node_radius = self.dest.boundingRect().width() / 2
+        if nodes_center_distance > source_node_radius + dest_node_radius + 6:
             edge_offset = QtCore.QPointF((line.dx() * source_node_radius) / nodes_center_distance,
                                          (line.dy() * dest_node_radius) / nodes_center_distance)
 
@@ -136,20 +125,22 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         else:
             self.source_point = line.p1()
             self.dest_point = line.p1()
-        self.setPos(self.mapToParent(self.boundingRect().center()))
+        # self.setPos(self.mapToParent(self.boundingRect().center()))
+        # print "Adjust of %s" % self.label.toPlainText()
 
     def boundingRect(self):
-        # print "CALLED"
         if not self.source or not self.dest:
             return QtCore.QRectF()
 
         pen_width = 1.0
         extra = (pen_width + self.arrowSize) / 2.0
-
         # return QtCore.QRectF(-100,-100,200,200)
         return QtCore.QRectF(self.source_point,
                              QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
-                                           self.dest_point.y() - self.source_point.y())).normalized()
+                                           self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
+                                                                                                               -extra,
+                                                                                                               extra,
+                                                                                                               extra)
 
     def paint(self, painter, option, widget):
         if not self.source or not self.dest:
@@ -212,16 +203,111 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         #     # Draw label text
         #     painter.drawText(QRect(x_coord, y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
         # QtGui.QGraphicsItem.paint(self,painter,option,widget)
+
+        # Debug
         # painter.setBrush(QtCore.Qt.NoBrush)
-        # painter.setPen(QtCore.Qt.red)
+        painter.setPen(QtCore.Qt.red)
         # painter.drawRect(self.boundingRect())
+        # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
         # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
+        painter.drawPath(self.shape())
+
+
+
+    def add_context_menu(self, options):
+        """
+        Add context menus actions the edge.
+
+        Parameters
+        ----------
+        options : dict
+            Dict with the text of the option as key and the name of the method to call if activated.
+            The values of the dict are tuples like (object, method).
+        """
+        self._logger.debug("Adding custom context menu to edge %s" % str(self.label.toPlainText()))
+        self.menu = QMenu()
+        for option_string, callback in options.items():
+            instance, method = callback
+            action = QAction(option_string, self.menu)
+            action.triggered.connect(getattr(instance, method))
+            self.menu.addAction(action)
+
+    def contextMenuEvent(self, event):
+        self._logger.debug("ContextMenuEvent received on edge %s" % str(self.label.toPlainText()))
+        if self.menu:
+            self.menu.exec_(event.screenPos())
+            event.setAccepted(True)
+        else:
+            self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+
+    def shape(self):
+        shape_path = QPainterPath()
+        if not self.source or not self.dest:
+            return
+
+            # Draw the line itself.
+        line = QtCore.QLineF(self.source_point, self.dest_point)
+
+        if line.length() == 0.0:
+            return
+
+        # Draw the arrows if there's enough room.
+        angle = math.acos(line.dx() / line.length())
+        if line.dy() >= 0:
+            angle = QEdgeGraphicItem.TwoPi - angle
+
+        source_arrow_p1 = self.source_point + QtCore.QPointF(
+            math.sin(
+                angle + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                angle + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        source_arrow_p2 = self.source_point + QtCore.QPointF(
+            math.sin(
+                angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p1 = self.dest_point + QtCore.QPointF(
+            math.sin(
+                angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p2 = self.dest_point + QtCore.QPointF(
+            math.sin(
+                angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+
+        shape_path.addPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
+        shape_path.moveTo(self.source_point)
+        shape_path.lineTo(self.dest_point)
+        shape_path.addPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
+
+        # Expan the shape 2 pixels to be able to click on edge lines
+        stroker = QPainterPathStroker()
+        stroker.setWidth(2)
+        stroker.setJoinStyle(Qt.MiterJoin)
+        newpath = (stroker.createStroke(shape_path) + shape_path).simplified()
+        return newpath
 
 
 class QNodeGraphicItem(QtGui.QGraphicsItem):
     Type = QtGui.QGraphicsItem.UserType + 1
 
     def __init__(self, graph_widget, label):
+        self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
+        self._logger.setLevel(logging.DEBUG)
         super(QNodeGraphicItem, self).__init__()
 
         self.graph = graph_widget
@@ -238,8 +324,9 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.label.setParentItem(self)
         self.label.setDefaultTextColor(QtCore.Qt.white)
         rect = self.label.boundingRect()
-        self.label.setPos(-rect.width()/2, -rect.height()/2)
+        self.label.setPos(-rect.width() / 2, -rect.height() / 2)
         self.animate = True
+        self.menu = None
 
     def type(self):
         return QNodeGraphicItem.Type
@@ -251,8 +338,53 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def edges(self):
         return self.edgeList
 
+    def calculate_forces2(self):  # To switch ON simulator::Unfinished
+
+        for node1 in self.scene().items():
+            if not isinstance(node1, QNodeGraphicItem):
+                continue
+            force_x = force_y = 0.
+            for node2 in self.scene().items():
+                if not isinstance(node2, QNodeGraphicItem):
+                    continue
+                if node1.alias == node2.alias: continue
+                ix = node1.x - node2.x
+                iy = node1.y - node2.y
+
+                while ix == 0 and iy == 0:
+                    node1.x = node1.x + random.uniform(-10, 10)
+                    node2.x = node2.x + random.uniform(-10, 10)
+                    node1.y = node1.y + random.uniform(-10, 10)
+                    node2.y = node2.y + random.uniform(-10, 10)
+                    ix = node1.x - node2.x
+                    iy = node1.y - node2.y
+
+                angle = math.atan2(iy, ix)
+                dist2 = ((abs((iy * iy) + (ix * ix))) ** 0.5) ** 2.
+                if dist2 < self.networkSettings.spring_length:
+                    dist2 = self.networkSettings.spring_length
+                force = self.networkSettings.field_force_multiplier / dist2
+                force_x += force * math.cos(angle)
+                force_y += force * math.sin(angle)
+
+            for node2 in self.componentList:
+
+                if node2.alias in node1.dependences or node1.alias in node2.dependences:
+                    ix = node1.x - node2.x
+                    iy = node1.y - node2.y
+                    angle = math.atan2(iy, ix)
+                    force = math.sqrt(abs((iy * iy) + (ix * ix)))  # force means distance actually
+                    # if force <= self.spring_length: continue       # "
+                    force -= self.networkSettings.spring_length  # force means spring strain now
+                    force = force * self.networkSettings.hookes_constant  # now force means force :-)
+                    force_x -= force * math.cos(angle)
+                    force_y -= force * math.sin(angle)
+
+            node1.vel_x = (node1.vel_x + (force_x * self.networkSettings.time_elapsed2)) * self.networkSettings.roza
+            node1.vel_y = (node1.vel_y + (force_y * self.networkSettings.time_elapsed2)) * self.networkSettings.roza
+
     def calculate_forces(self):
-        if not self.scene() or self.scene().mouseGrabberItem() is self:
+        if not self.scene() or self.scene().mouseGrabberItem() is self or not self.animate:
             self.newPos = self.pos()
             return
 
@@ -269,8 +401,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             dy = line.dy()
             l = 2.0 * (dx * dx + dy * dy)
             if l > 0:
-                xvel += (dx * (7*self.size)) / l
-                yvel += (dy * (7*self.size)) / l
+                xvel += (dx * (7 * self.size)) / l
+                yvel += (dy * (7 * self.size)) / l
 
         # Now subtract all forces pulling items together.
         weight = (len(self.edgeList) + 1) * self.size
@@ -283,8 +415,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             yvel += pos.y() / weight
 
         # Invisible Node pulling to the center
-        xvel -= (self.pos().x()/2) / (weight/4)
-        yvel -= (self.pos().y()/2) / (weight/4)
+        xvel -= (self.pos().x() / 2) / (weight / 4)
+        yvel -= (self.pos().y() / 2) / (weight / 4)
 
         if QtCore.qAbs(xvel) < 0.1 and QtCore.qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
@@ -295,18 +427,15 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
 
     def advance(self):
-        if self.animate:
-            if self.newPos == self.pos():
-                return False
-
-            self.setPos(self.newPos)
-            return True
-        else:
+        if self.newPos == self.pos():
             return False
 
+        self.setPos(self.newPos)
+        return True
+
     def boundingRect(self):
-        x_coord = y_coord = (-1*(self.size/2)) - self.border_width
-        width = height = self.size+23+self.border_width
+        x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width / 2
+        width = height = 2 + self.size + self.border_width / 2
         return QtCore.QRectF(x_coord, y_coord, width,
                              height)
 
@@ -354,6 +483,13 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         # self.setOpacity(0.5)
         # print "Node: " + str(self.scenePos().x()) + " " + str(self.scenePos().y())
 
+        # Debug
+        # painter.setBrush(QtCore.Qt.NoBrush)
+        # painter.setPen(QtCore.Qt.red)
+        # painter.drawRect(self.boundingRect())
+        # painter.drawEllipse(-3, -3, 6, 6)
+        # self.label.setPlainText("%s - %s" % (self.scenePos().x(), self.scenePos().y()))
+
     def node_label_width(self):
         font = QFont()
         font.setFamily(font.defaultFamily())
@@ -387,6 +523,32 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def animate_node(self, animate):
         self.animate = animate
 
+    def add_context_menu(self, options):
+        """
+        Add context menus actions the edge.
+
+        Parameters
+        ----------
+        options : dict
+            Dict with the text of the option as key and the name of the method to call if activated.
+            The values of the dict are tuples like (object, method).
+        """
+        self._logger.debug("Adding custom context menu to node %s" % str(self.label.toPlainText()))
+        self.menu = QMenu()
+        for option_string, callback in options.items():
+            instance, method = callback
+            action = QAction(option_string, self.menu)
+            action.triggered.connect(getattr(instance, method))
+            self.menu.addAction(action)
+
+    def contextMenuEvent(self, event):
+        self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
+        if self.menu:
+            self.menu.exec_(event.screenPos())
+            event.setAccepted(True)
+        else:
+            self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+
 
 class QNetworkxWidget(QtGui.QGraphicsView):
     def __init__(self):
@@ -410,6 +572,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
 
         self.nodes = {}
         self.edges = {}
+        # self.setContextMenuPolicy(Qt.CustomContextMenu)
 
     def item_moved(self):
         if not self.timerId:
@@ -434,10 +597,10 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             node1 = first_node
             node2 = second_node
 
-        edge = QEdgeGraphicItem(node1, node2)
+        edge = QEdgeGraphicItem(node1, node2, label)
         edge.adjust()
         if edge:
-            self.edges[label] = edge
+            self.edges[edge.label.toPlainText()] = edge
             self.scene.addItem(edge)
             # self.scene.addItem(edge.label)
 
@@ -565,28 +728,57 @@ class QNetworkxWidget(QtGui.QGraphicsView):
 
         self.scale(scale_factor, scale_factor)
 
-    # def graph_example(self):
-    #     self.the_graph.add_nodes_from([1, 2, 3, 4])
-    #     self.the_graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
-    #     self.the_graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
-    #
-    #     # X = set(n for n, d in self.the_graph.nodes(data=True) if d['bipartite'] == 0)
-    #     # Y = set(self.the_graph) - X
-    #     #
-    #     # X = sorted(X, reverse=True)
-    #     # Y = sorted(Y, reverse=True)
-    #     #
-    #     # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
-    #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
-    #     self.node_positions = pos=nx.spring_layout(self.the_graph)
+        # def graph_example(self):
+        #     self.the_graph.add_nodes_from([1, 2, 3, 4])
+        #     self.the_graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
+        #     self.the_graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
+        #
+        #     # X = set(n for n, d in self.the_graph.nodes(data=True) if d['bipartite'] == 0)
+        #     # Y = set(self.the_graph) - X
+        #     #
+        #     # X = sorted(X, reverse=True)
+        #     # Y = sorted(Y, reverse=True)
+        #     #
+        #     # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
+        #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
+        #     self.node_positions = pos=nx.spring_layout(self.the_graph)
+
+    def add_context_menu(self, options, related_classes="graph"):
+        """
+        Add variable context menus actions to the graph elements.
+
+        Parameters
+        ----------
+        options : dict
+            Dict with the text of the option as key and the name of the method to call if activated.
+            The values of the dict are tuples like (object, method).
+        related_classes:
+            List of elements to add the menu actions ["nodes", "edges", "graph"]
+        """
+        if "nodes" in related_classes:
+            for node in self.nodes.values():
+                node.add_context_menu(options)
+        if "edges" in related_classes:
+            for edge in self.edges.values():
+                edge.add_context_menu(options)
+        if "graph" in related_classes:
+            for option_string, callback in options.items():
+                instance, method = callback
+                action1 = QAction(option_string, self)
+                action1.triggered.connect(getattr(instance, method))
+                self.addAction(action1)
+
+
 
 
 class QNetworkxController(object):
-
     def __init__(self):
         self.graph_widget = QNetworkxWidget()
         self.graph = nx.Graph()
         # self.node_positions = self.construct_the_graph()
+
+    def print_something(self):
+        print "THAT THING"
 
     def delete_graph(self):
         self.graph_widget.delete_graph()
@@ -606,6 +798,11 @@ class QNetworkxController(object):
 
         initial_pos = self.networkx_positions_to_pixels(initial_pos)
         self.graph_widget.set_node_positions(initial_pos)
+        a = {
+            "Option 1": (self, "print_something"),
+            "option 2": (self, "print_something")
+        }
+        self.graph_widget.add_context_menu(a, ["nodes", "edges"])
 
     def networkx_positions_to_pixels(self, position_dict):
         pixel_positions = {}
@@ -675,7 +872,6 @@ class QNetworkxWindowExample(QMainWindow):
         self.network_controller = QNetworkxController()
 
         self.graph_widget = self.network_controller.get_widget()
-        self.graph_widget.set_node_size(40)
         self.main_layout.addWidget(self.graph_widget)
 
         self.horizontal_layout = QHBoxLayout()
@@ -690,7 +886,8 @@ class QNetworkxWindowExample(QMainWindow):
         self.animation_checkbox = QCheckBox("Animate graph")
         self.horizontal_layout.addWidget(self.animation_checkbox)
         self.animation_checkbox.stateChanged.connect(self.graph_widget.animate_nodes)
-        self.graph_model = nx.complete_graph(3)
+        self.graph_model = nx.complete_graph(10)
+        # self.graph_model.add_edge(1,1)
         initial_positions = nx.circular_layout(self.graph_model)
         self.network_controller.set_graph(self.graph_model, initial_positions)
         self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
@@ -712,6 +909,7 @@ class QNetworkxWindowExample(QMainWindow):
         pos = layout_method(self.graph_model)
         pos = self.network_controller.networkx_positions_to_pixels(pos)
         self.graph_widget.set_node_positions(pos)
+
 
 if __name__ == '__main__':
     import sys
