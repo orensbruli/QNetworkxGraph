@@ -4,24 +4,26 @@
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
-# TODO: Create directed and not directed edges
-# TODO: Physhic on label edges. Atraction to edge center, repulsion from near edges
+# TODO: Physhic on label edges. Attraction to edge center, repulsion from near edges
 # TODO: Loop edges
 # TODO: contraction of a node (if its a tree an there's no loops)
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
-# TODO: Context menu on edges depend on the bounding rect, so it's very large
+# TODO: Make it possible that the nodes have any shape
 
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
 # Done: Combobox menu listing the available layouts
 # Done: Labels on edges
+# Done: Create directed and not directed edges
+# Done: Fix: Context menu on edges depend on the bounding rect, so it's very large
 
 
 import math
 
 import logging
 import networkx as nx
+import numpy
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QString, QPointF, Qt, QRectF
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
@@ -52,7 +54,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
     Type = QtGui.QGraphicsItem.UserType + 2
 
-    def __init__(self, source_node, dest_node, label=None):
+    def __init__(self, source_node, dest_node, label=None, directed = False):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
         self._logger.setLevel(logging.DEBUG)
         super(QEdgeGraphicItem, self).__init__()
@@ -80,6 +82,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         self.dest.add_edge(self)
         self.adjust()
         self.menu = None
+        self.is_directed = directed
 
     def type(self):
         return QEdgeGraphicItem.Type
@@ -134,18 +137,98 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
         pen_width = 1.0
         extra = (pen_width + self.arrowSize) / 2.0
-        # return QtCore.QRectF(-100,-100,200,200)
-        return QtCore.QRectF(self.source_point,
-                             QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
-                                           self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
-                                                                                                               -extra,
-                                                                                                               extra,
-                                                                                                               extra)
+        return QtCore.QRectF(-800,-800,1600,1600)
+        # return QtCore.QRectF(self.source_point,
+        #                      QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
+        #                                    self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
+        #                                                                                                        -extra,
+        #                                                                                                        extra,
+        #                                                                                                        extra)
 
     def paint(self, painter, option, widget):
         if not self.source or not self.dest:
             return
 
+        if self.source == self.dest:
+            self.paint_arc(painter, option, widget)
+        else:
+            self.paint_arrow(painter, option, widget)
+        # if self.label:
+        #     # Calculate edge center
+        #     # Calculate label width
+        #     # Draw label background
+        #     # Draw label text
+        #     painter.drawText(QRect(x_coord, y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
+        # QtGui.QGraphicsItem.paint(self,painter,option,widget)
+
+        # Debug
+        # painter.setBrush(QtCore.Qt.NoBrush)
+        # painter.setPen(QtCore.Qt.red)
+        # painter.drawRect(self.boundingRect())
+        # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
+        # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
+        # painter.drawPath(self.shape())
+
+
+
+    def add_context_menu(self, options):
+        """
+        Add context menus actions the edge.
+
+        Parameters
+        ----------
+        options : dict
+            Dict with the text of the option as key and the name of the method to call if activated.
+            The values of the dict are tuples like (object, method).
+        """
+        self._logger.debug("Adding custom context menu to edge %s" % str(self.label.toPlainText()))
+        self.menu = QMenu()
+        for option_string, callback in options.items():
+            instance, method = callback
+            action = QAction(option_string, self.menu)
+            action.triggered.connect(getattr(instance, method))
+            self.menu.addAction(action)
+
+    def contextMenuEvent(self, event):
+        self._logger.debug("ContextMenuEvent received on edge %s" % str(self.label.toPlainText()))
+        if self.menu:
+            self.menu.exec_(event.screenPos())
+            event.setAccepted(True)
+        else:
+            self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+
+    def shape(self):
+        if self.source == self.dest:
+            new_path = self.arc_shape()
+        else:
+            new_path = self.arrow_shape()
+        return new_path
+
+    def paint_arc(self, painter, option, widget):
+        node_shape = QPainterPath(self.source.shape())
+        painter.setPen(QtGui.QPen(QtCore.Qt.green, 1, QtCore.Qt.SolidLine,
+                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        path = QPainterPath()
+        # path.moveTo(0,self.source.size/2)
+
+        angle = -45
+        # Calculating x,y of the center of the new ellipse
+        y = (math.sin(math.radians(angle))* (self.source.size/2))
+        x = (math.cos(math.radians(angle))* (self.source.size/2))
+        # Making relative to the 0,0 of the new ellipse
+        x = x-self.source.size/2
+        y = y-self.source.size/2
+        path.addEllipse(x,y ,self.source.size,self.source.size)
+        # path.subtracted(node_shape)
+        init_angle = (angle-30)
+        total_angle = (285+angle)
+        painter.drawArc(x,y ,self.source.size,self.source.size, init_angle*16, 240*16)
+        painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
+                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        painter.drawEllipse(0, 0, 4, 4)
+        self.setZValue(3)
+
+    def paint_arrow(self, painter, option, widget):
         # Draw the line itself.
         line = QtCore.QLineF(self.source_point, self.dest_point)
 
@@ -194,53 +277,14 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
             ) * self.arrowSize)
 
         painter.setBrush(QtCore.Qt.white)
-        painter.drawPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
+        if not self.is_directed:
+            painter.drawPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
         painter.drawPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
-        # if self.label:
-        #     # Calculate edge center
-        #     # Calculate label width
-        #     # Draw label background
-        #     # Draw label text
-        #     painter.drawText(QRect(x_coord, y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
-        # QtGui.QGraphicsItem.paint(self,painter,option,widget)
 
-        # Debug
-        # painter.setBrush(QtCore.Qt.NoBrush)
-        painter.setPen(QtCore.Qt.red)
-        # painter.drawRect(self.boundingRect())
-        # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
-        # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
-        painter.drawPath(self.shape())
+    def arc_shape(self):
+        pass
 
-
-
-    def add_context_menu(self, options):
-        """
-        Add context menus actions the edge.
-
-        Parameters
-        ----------
-        options : dict
-            Dict with the text of the option as key and the name of the method to call if activated.
-            The values of the dict are tuples like (object, method).
-        """
-        self._logger.debug("Adding custom context menu to edge %s" % str(self.label.toPlainText()))
-        self.menu = QMenu()
-        for option_string, callback in options.items():
-            instance, method = callback
-            action = QAction(option_string, self.menu)
-            action.triggered.connect(getattr(instance, method))
-            self.menu.addAction(action)
-
-    def contextMenuEvent(self, event):
-        self._logger.debug("ContextMenuEvent received on edge %s" % str(self.label.toPlainText()))
-        if self.menu:
-            self.menu.exec_(event.screenPos())
-            event.setAccepted(True)
-        else:
-            self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
-
-    def shape(self):
+    def arrow_shape(self):
         shape_path = QPainterPath()
         if not self.source or not self.dest:
             return
@@ -288,8 +332,8 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-
-        shape_path.addPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
+        if not self.is_directed:
+            shape_path.addPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
         shape_path.moveTo(self.source_point)
         shape_path.lineTo(self.dest_point)
         shape_path.addPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
@@ -298,8 +342,8 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         stroker = QPainterPathStroker()
         stroker.setWidth(2)
         stroker.setJoinStyle(Qt.MiterJoin)
-        newpath = (stroker.createStroke(shape_path) + shape_path).simplified()
-        return newpath
+        new_path = (stroker.createStroke(shape_path) + shape_path).simplified()
+        return  new_path
 
 
 class QNodeGraphicItem(QtGui.QGraphicsItem):
@@ -547,12 +591,12 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             self.menu.exec_(event.screenPos())
             event.setAccepted(True)
         else:
-            self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+            self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
 
 
 class QNetworkxWidget(QtGui.QGraphicsView):
-    def __init__(self):
-        super(QNetworkxWidget, self).__init__()
+    def __init__(self, directed= False, parent=None):
+        super(QNetworkxWidget, self).__init__(parent)
 
         self.timerId = 0
 
@@ -573,6 +617,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.nodes = {}
         self.edges = {}
         # self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.is_directed = directed
 
     def item_moved(self):
         if not self.timerId:
@@ -597,7 +642,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             node1 = first_node
             node2 = second_node
 
-        edge = QEdgeGraphicItem(node1, node2, label)
+        edge = QEdgeGraphicItem(node1, node2, label, self.is_directed)
         edge.adjust()
         if edge:
             self.edges[edge.label.toPlainText()] = edge
@@ -768,12 +813,18 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 action1.triggered.connect(getattr(instance, method))
                 self.addAction(action1)
 
-
+    def delete_graph(self):
+        for node in self.nodes.values():
+            self.scene.removeItem(node)
+        for edge in self.edges.values():
+            self.scene.removeItem(edge)
+        self.nodes.clear()
+        self.edges.clear()
 
 
 class QNetworkxController(object):
     def __init__(self):
-        self.graph_widget = QNetworkxWidget()
+        self.graph_widget = QNetworkxWidget(directed=True)
         self.graph = nx.Graph()
         # self.node_positions = self.construct_the_graph()
 
@@ -798,11 +849,10 @@ class QNetworkxController(object):
 
         initial_pos = self.networkx_positions_to_pixels(initial_pos)
         self.graph_widget.set_node_positions(initial_pos)
-        a = {
-            "Option 1": (self, "print_something"),
-            "option 2": (self, "print_something")
-        }
-        self.graph_widget.add_context_menu(a, ["nodes", "edges"])
+
+    def set_elements_context_menus(self, options_dict, elements):
+        self.graph_widget.add_context_menu(options_dict, elements)
+
 
     def networkx_positions_to_pixels(self, position_dict):
         pixel_positions = {}
@@ -810,8 +860,11 @@ class QNetworkxController(object):
         maximum = max(map(max, zip(*position_dict.values())))
         for node, pos in position_dict.items():
             s_r = self.graph_widget.scene.sceneRect()
-            m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
-            pixel_positions[node] = (m(pos[0]), m(pos[1]))
+            if minimum != maximum:
+                m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
+                pixel_positions[node] = (m(pos[0]), m(pos[1]))
+            else:
+                pixel_positions[node] = (s_r.center().x(), s_r.center().y())
         return pixel_positions
 
     def get_widget(self):
@@ -901,6 +954,22 @@ class QNetworkxWindowExample(QMainWindow):
                 self.layouts_combo.addItem(layout_method)
         self.main_layout.addWidget(self.layouts_combo)
         self.layouts_combo.currentIndexChanged.connect(self.on_change_layout)
+
+        a = {
+            "Option 1": (self.network_controller, "print_something"),
+            "option 2": (self.network_controller, "print_something")
+        }
+        self.network_controller.set_elements_context_menus(a, ["edges"])
+        self.create_looped_graph()
+
+    def create_looped_graph(self):
+        self.network_controller.delete_graph()
+        self.graph_model = nx.DiGraph()
+        self.graph_model.add_node("Patata")
+        self.graph_model.add_edge("Patata","Patata")
+        self.network_controller.set_graph(self.graph_model)
+        self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
+        self.graph_widget.set_node_size(200)
 
     def on_change_layout(self, index):
         item = self.layouts_combo.itemText(index)
