@@ -717,6 +717,12 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 node.calculate_forces()
                 node.advance()
 
+    def stop_animation(self):
+        self.animate_nodes(False)
+
+    def start_animation(self):
+        self.animate_nodes(True)
+
     def set_node_positions(self, position_dict):
         for node_str, position in position_dict.items():
             if node_str in self.nodes:
