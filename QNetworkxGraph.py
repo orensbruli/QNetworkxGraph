@@ -4,12 +4,14 @@
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
-# TODO: Physhic on label edges. Attraction to edge center, repulsion from near edges
+# TODO: Physic on label edges. Attraction to edge center, repulsion from near edges
 # TODO: Loop edges
 # TODO: contraction of a node (if its a tree an there's no loops)
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
+# TODO: Multiple selection and deselection
+# TODO: Create gravity centers for group of nodes
 
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
@@ -29,6 +31,7 @@ from PyQt4.QtCore import QString, QPointF, Qt, QRectF
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
     QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker
 from scipy.interpolate import interp1d
+from random import uniform
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -371,6 +374,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         self.label.setPos(-rect.width() / 2, -rect.height() / 2)
         self.animate = True
         self.menu = None
+        self.setPos(uniform(-10, 10), uniform(-10, 10))
 
     def type(self):
         return QNodeGraphicItem.Type
@@ -381,51 +385,6 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
 
     def edges(self):
         return self.edgeList
-
-    def calculate_forces2(self):  # To switch ON simulator::Unfinished
-
-        for node1 in self.scene().items():
-            if not isinstance(node1, QNodeGraphicItem):
-                continue
-            force_x = force_y = 0.
-            for node2 in self.scene().items():
-                if not isinstance(node2, QNodeGraphicItem):
-                    continue
-                if node1.alias == node2.alias: continue
-                ix = node1.x - node2.x
-                iy = node1.y - node2.y
-
-                while ix == 0 and iy == 0:
-                    node1.x = node1.x + random.uniform(-10, 10)
-                    node2.x = node2.x + random.uniform(-10, 10)
-                    node1.y = node1.y + random.uniform(-10, 10)
-                    node2.y = node2.y + random.uniform(-10, 10)
-                    ix = node1.x - node2.x
-                    iy = node1.y - node2.y
-
-                angle = math.atan2(iy, ix)
-                dist2 = ((abs((iy * iy) + (ix * ix))) ** 0.5) ** 2.
-                if dist2 < self.networkSettings.spring_length:
-                    dist2 = self.networkSettings.spring_length
-                force = self.networkSettings.field_force_multiplier / dist2
-                force_x += force * math.cos(angle)
-                force_y += force * math.sin(angle)
-
-            for node2 in self.componentList:
-
-                if node2.alias in node1.dependences or node1.alias in node2.dependences:
-                    ix = node1.x - node2.x
-                    iy = node1.y - node2.y
-                    angle = math.atan2(iy, ix)
-                    force = math.sqrt(abs((iy * iy) + (ix * ix)))  # force means distance actually
-                    # if force <= self.spring_length: continue       # "
-                    force -= self.networkSettings.spring_length  # force means spring strain now
-                    force = force * self.networkSettings.hookes_constant  # now force means force :-)
-                    force_x -= force * math.cos(angle)
-                    force_y -= force * math.sin(angle)
-
-            node1.vel_x = (node1.vel_x + (force_x * self.networkSettings.time_elapsed2)) * self.networkSettings.roza
-            node1.vel_y = (node1.vel_y + (force_y * self.networkSettings.time_elapsed2)) * self.networkSettings.roza
 
     def calculate_forces(self):
         if not self.scene() or self.scene().mouseGrabberItem() is self or not self.animate:
@@ -639,8 +598,18 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 node1 = self.nodes[node1_str]
                 node2 = self.nodes[node2_str]
         elif first_node and second_node:
-            node1 = first_node
-            node2 = second_node
+            if isinstance(first_node, basestring):
+                node1 = self.nodes[first_node]
+            elif isinstance(first_node, QNodeGraphicItem):
+                node1 = first_node
+            else:
+                raise Exception("Nodes must be existing labels on the graph or QNodeGRaphicItem")
+            if isinstance(second_node, basestring):
+                node2 = self.nodes[second_node]
+            elif isinstance(second_node, QNodeGraphicItem):
+                node2 = second_node
+            else:
+                raise Exception("Nodes must be existing labels on the graph or QNodeGRaphicItem")
 
         edge = QEdgeGraphicItem(node1, node2, label, self.is_directed)
         edge.adjust()
