@@ -10,6 +10,7 @@
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
+# FIX: The circunference of a selected node appears cutted up, down, right and left.
 
 # Done: Show labels on nodes
 # Done: Option to Calculate the widest label and set that width for all the nodes
@@ -17,6 +18,7 @@
 # Done: Labels on edges
 # Done: Create directed and not directed edges
 # Done: Fix: Context menu on edges depend on the bounding rect, so it's very large
+# Done: Make real zoom on the scene (+ and -)
 
 
 import math
@@ -607,17 +609,38 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.setCacheMode(QtGui.QGraphicsView.CacheBackground)
         self.setViewportUpdateMode(QtGui.QGraphicsView.BoundingRectViewportUpdate)
         self.setRenderHint(QtGui.QPainter.Antialiasing)
-        self.setTransformationAnchor(QtGui.QGraphicsView.AnchorUnderMouse)
+        self.setTransformationAnchor(QtGui.QGraphicsView.AnchorViewCenter)
         self.setResizeAnchor(QtGui.QGraphicsView.AnchorViewCenter)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff )
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff )
 
-        self.scale(0.8, 0.8)
         self.setMinimumSize(400, 400)
-        self.setWindowTitle("Elastic Nodes")
+        self.setWindowTitle("QNetworkXWidget")
+
 
         self.nodes = {}
         self.edges = {}
         # self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.is_directed = directed
+
+        self._scale_factor = 1.15
+    #     self.zoom_in_action = QAction("Zoom in", self)
+    #     self.zoom_in_action.setShortcut("Ctrl++")
+    #     self.zoom_in_action.triggered.connect(self.zoom_in_one_step)
+    #     self.zoom_out_action = QAction("Zoom out", self)
+    #     self.zoom_out_action.setShortcut("Ctrl+-")
+    #     self.zoom_out_action.triggered.connect(self.zoom_out_one_step)
+    #     # self.scale(self._scale, self._scale)
+    #
+    # def zoom_in_one_step(self):
+    #     self.scale(self._scale_factor, self._scale_factor)
+    #
+    # def zoom_out_one_step(self):
+    #     self.scale(1/self._scale_factor, 1/self._scale_factor)
+
+    def set_scale_factor(self, scale_factor):
+        self._scale_factor = scale_factor
+
 
     def item_moved(self):
         if not self.timerId:
@@ -652,22 +675,11 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     def keyPressEvent(self, event):
         key = event.key()
 
-        if key == QtCore.Qt.Key_Up:
-            self.centerNode.moveBy(0, -20)
-        elif key == QtCore.Qt.Key_Down:
-            self.centerNode.moveBy(0, 20)
-        elif key == QtCore.Qt.Key_Left:
-            self.centerNode.moveBy(-20, 0)
-        elif key == QtCore.Qt.Key_Right:
-            self.centerNode.moveBy(20, 0)
-        elif key == QtCore.Qt.Key_Plus:
-            self.scale_view(1.2)
+
+        if key == QtCore.Qt.Key_Plus:
+            self.scale_view(self._scale_factor)
         elif key == QtCore.Qt.Key_Minus:
-            self.scale_view(1 / 1.2)
-        elif key == QtCore.Qt.Key_Space or key == QtCore.Qt.Key_Enter:
-            for item in self.scene().items():
-                if isinstance(item, QNodeGraphicItem):
-                    item.setPos(-150 + QtCore.qrand() % 300, -150 + QtCore.qrand() % 300)
+            self.scale_view(1 / self._scale_factor)
         else:
             super(QNetworkxWidget, self).keyPressEvent(event)
 
@@ -692,6 +704,9 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     def resizeEvent(self, event):
         QGraphicsView.resizeEvent(self, event)
         # self.centerOn(self.mapToScene(0, 0))
+        self.resize_scene()
+
+    def resize_scene(self):
         self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
 
     def drawBackground(self, painter, rect):
@@ -717,20 +732,6 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.scene.addEllipse(-10, -10, 20, 20,
                               QPen(QtCore.Qt.white), QBrush(QtCore.Qt.SolidPattern))
 
-        # # Text.
-        # textRect = QtCore.QRectF(sceneRect.left() + 4, sceneRect.top() + 4,
-        #                          sceneRect.width() - 4, sceneRect.height() - 4)
-        # message = "Click and drag the nodes around, and zoom with the " \
-        #           "mouse wheel or the '+' and '-' keys"
-        #
-        # font = painter.font()
-        # font.setBold(True)
-        # font.setPointSize(14)
-        # painter.setFont(font)
-        # painter.setPen(QtCore.Qt.lightGray)
-        # painter.drawText(textRect.translated(2, 2), message)
-        # painter.setPen(QtCore.Qt.black)
-        # painter.drawText(textRect, message)
 
     def set_node_size(self, size):
         nodes = self.nodes.values()
@@ -772,6 +773,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             return
 
         self.scale(scale_factor, scale_factor)
+        self.resize_scene()
 
         # def graph_example(self):
         #     self.the_graph.add_nodes_from([1, 2, 3, 4])
