@@ -31,7 +31,8 @@ import numpy
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QString, QPointF, Qt, QRectF
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
-    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker
+    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
+    QTransform
 from scipy.interpolate import interp1d
 from random import uniform
 
@@ -210,24 +211,39 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         return new_path
 
     def paint_arc(self, painter, option, widget):
-        node_shape = QPainterPath(self.source.shape())
-        painter.setPen(QtGui.QPen(QtCore.Qt.green, 1, QtCore.Qt.SolidLine,
+        angle = 135
+        angle_rad = math.radians(angle)
+        node_radius = self.source.size/2.0
+        arc_radius = 2*node_radius/3.0
+        centers_distance = node_radius+(2*arc_radius/3.0)
+        arc_center_y = math.sin(angle_rad) * (centers_distance)
+        arc_center_x = math.cos(angle_rad) * (centers_distance)
+        painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
                                   QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        path = QPainterPath()
-        # path.moveTo(0,self.source.size/2)
+        painter.drawEllipse(arc_center_x, arc_center_y, 4, 4)
 
-        angle = -45
-        # Calculating x,y of the center of the new ellipse
-        y = (math.sin(math.radians(angle))* (self.source.size/2))
-        x = (math.cos(math.radians(angle))* (self.source.size/2))
-        # Making relative to the 0,0 of the new ellipse
-        x = x-self.source.size/2
-        y = y-self.source.size/2
-        path.addEllipse(x,y ,self.source.size,self.source.size)
-        # path.subtracted(node_shape)
-        init_angle = (angle-30)
-        total_angle = (285+angle)
-        painter.drawArc(x,y ,self.source.size,self.source.size, init_angle*16, 240*16)
+        # http://mathworld.wolfram.com/Circle-CircleIntersection.html
+        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(arc_radius,2) + math.pow(node_radius,2)) / float((2*centers_distance))
+        p1_cut_point_y = math.sqrt(math.pow(node_radius,2) - math.pow(p1_cut_point_x,2))
+        p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
+        p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
+        transform = QTransform()
+        transform.rotate(angle)
+        p1 = transform.map(p1)
+        p2 = transform.map(p2)
+
+
+        painter.setPen(QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine,
+                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        painter.drawEllipse(p1, 4, 4)
+        painter.drawEllipse(p2, 4, 4)
+
+
+        init_angle = math.asin(math.radians((p2.x()-arc_center_x)/arc_radius))
+        final_angle = math.asin(math.radians(p1.x()/arc_radius))
+
+
+        painter.drawArc(arc_center_x, arc_center_y , 60, 60, 20*16, 180*16)
         painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
                                   QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
         painter.drawEllipse(0, 0, 4, 4)
