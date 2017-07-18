@@ -42,7 +42,7 @@ file_handler.setFormatter(current_format)
 console_handler.setFormatter(current_format)
 # add the handlers to the logger
 logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# logger.addHandler(console_handler)
 logger.info('Created main logger')
 
 
@@ -702,6 +702,14 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 node.calculate_forces()
                 node.advance()
 
+    # this function will start animation
+    def start_animation(self):
+        print "animation started"
+
+    # this function will stop animation
+    def stop_animation(self):
+        print "animation stopped"
+
     def set_node_positions(self, position_dict):
         for node_str, position in position_dict.items():
             if node_str in self.nodes:
@@ -767,9 +775,6 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 action1 = QAction(option_string, self)
                 action1.triggered.connect(getattr(instance, method))
                 self.addAction(action1)
-
-
-
 
 class QNetworkxController(object):
     def __init__(self):
