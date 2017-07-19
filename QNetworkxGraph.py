@@ -67,6 +67,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
+        self.arc_angle = 90
         self.source_point = QtCore.QPointF()
         self.dest_point = QtCore.QPointF()
 
@@ -112,45 +113,77 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         if not self.source or not self.dest:
             return
 
-        sceneLine = QtCore.QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
+        if self.source != self.dest:
+            sceneLine = QtCore.QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
 
-        sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
+            sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
 
-        self.setPos(sceneLine_center)
+            self.setPos(sceneLine_center)
 
-        line = QtCore.QLineF(self.mapFromItem(self.source, 0, 0),
-                             self.mapFromItem(self.dest, 0, 0))
-        nodes_center_distance = line.length()
+            line = QtCore.QLineF(self.mapFromItem(self.source, 0, 0),
+                                 self.mapFromItem(self.dest, 0, 0))
+            nodes_center_distance = line.length()
 
-        self.prepareGeometryChange()
+            self.prepareGeometryChange()
 
-        source_node_radius = self.source.boundingRect().width() / 2
-        dest_node_radius = self.dest.boundingRect().width() / 2
-        if nodes_center_distance > source_node_radius + dest_node_radius + 6:
-            edge_offset = QtCore.QPointF((line.dx() * source_node_radius) / nodes_center_distance,
-                                         (line.dy() * dest_node_radius) / nodes_center_distance)
+            source_node_radius = self.source.boundingRect().width() / 2
+            dest_node_radius = self.dest.boundingRect().width() / 2
+            if nodes_center_distance > source_node_radius + dest_node_radius + 6:
+                edge_offset = QtCore.QPointF((line.dx() * source_node_radius) / nodes_center_distance,
+                                             (line.dy() * dest_node_radius) / nodes_center_distance)
 
-            self.source_point = line.p1() + edge_offset
-            self.dest_point = line.p2() - edge_offset
+                self.source_point = line.p1() + edge_offset
+                self.dest_point = line.p2() - edge_offset
+            else:
+                self.source_point = line.p1()
+                self.dest_point = line.p1()
+            # self.setPos(self.mapToParent(self.boundingRect().center()))
+            # print "Adjust of %s" % self.label.toPlainText()
         else:
-            self.source_point = line.p1()
-            self.dest_point = line.p1()
-        # self.setPos(self.mapToParent(self.boundingRect().center()))
-        # print "Adjust of %s" % self.label.toPlainText()
+            # setting and getting initial variables we will use
+            angle_rad = math.radians(self.arc_angle)
+            node_radius = self.source.size / 2.0
+            arc_radius = node_radius * (0.60)
+            centers_distance = node_radius + (2 * arc_radius / 3.0)
+
+            # calculate x, y position of the arc center from the node center
+            arc_center_x = math.cos(angle_rad) * (centers_distance)
+            arc_center_y = math.sin(angle_rad) * (centers_distance)
+
+            # Visual Debug
+            # painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
+            #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+            # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
+
+            # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
+            # http://mathworld.wolfram.com/Circle-CircleIntersection.html
+            p1_cut_point_x = (math.pow(centers_distance, 2) - math.pow(node_radius, 2) + math.pow(arc_radius,
+                                                                                                  2)) / float(
+                (2 * centers_distance))
+            p1_cut_point_y = math.sqrt(math.pow(arc_radius, 2) - math.pow(p1_cut_point_x, 2))
+            p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
+            p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
+            self.setPos(self.source.pos().x()+arc_center_x, self.source.pos().y()+arc_center_y)
+            self.prepareGeometryChange()
+            self.source_point = p1
+            self.dest_point = p2
 
     def boundingRect(self):
         if not self.source or not self.dest:
             return QtCore.QRectF()
 
-        pen_width = 1.0
-        extra = (pen_width + self.arrowSize) / 2.0
-        return QtCore.QRectF(-800,-800,1600,1600)
-        # return QtCore.QRectF(self.source_point,
-        #                      QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
-        #                                    self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
-        #                                                                                                        -extra,
-        #                                                                                                        extra,
-        #                                                                                                        extra)
+        if self.source != self.dest:
+            pen_width = 1.0
+            extra = (pen_width + self.arrowSize) / 2.0
+            return QtCore.QRectF(self.source_point,
+                                 QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
+                                               self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
+                                                                                                                   -extra,
+                                                                                                                   extra,
+                                                                                                                   extra)
+        else:
+            return self.arc_shape().boundingRect().adjusted(0,0,+1,+1)
+            # return QRectF(-2000,-2000, 4000, 4000)
 
     def paint(self, painter, option, widget):
         if not self.source or not self.dest:
@@ -175,6 +208,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
         # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
         # painter.drawPath(self.shape())
+        # painter.drawRect(self.shape().boundingRect())
 
 
 
@@ -213,33 +247,11 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
     def paint_arc(self, painter, option, widget):
         # setting and getting initial variables we will use
-        angle = 0
-        angle_rad = math.radians(angle)
-        node_radius = self.source.size/2.0
+        node_radius = self.source.size / 2.0
         arc_radius = node_radius * (0.60)
-        centers_distance = node_radius+(2*arc_radius/3.0)
-
-        # calculate x, y position of the arc center from the node center
-        arc_center_x = math.cos(angle_rad) * (centers_distance)
-        arc_center_y = math.sin(angle_rad) * (centers_distance)
-
-
-        # Visual Debug
-        # painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
-        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
-
-        # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
-        # http://mathworld.wolfram.com/Circle-CircleIntersection.html
-        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(node_radius,2) + math.pow(arc_radius,2)) / float((2*centers_distance))
-        p1_cut_point_y = math.sqrt(math.pow(arc_radius,2) - math.pow(p1_cut_point_x,2))
-        p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
-        p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
-
-
         # # Translate also the painter to keep it sincronized to
-        painter.translate(arc_center_x, arc_center_y)
-        painter.rotate(180+angle)
+        # painter.translate(arc_center_x, arc_center_y)
+        painter.rotate(180+self.arc_angle)
         # painter.scale(-1,1)
         # painter.rotate(180)
 
@@ -262,8 +274,8 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # painter.drawText(40, 0, "40x,0y")
 
         # Calculate the P1 and P2 angle on arc circle coordinates
-        p1_angle = math.atan2(p1.y(),p1.x())
-        p2_angle = math.atan2(p2.y(),p2.x())
+        p1_angle = math.atan2(self.source_point.y(),self.source_point.x())
+        p2_angle = math.atan2(self.dest_point.y(),self.dest_point.x())
 
         p1_angle_normalized = p1_angle%(2*math.pi)
         p2_angle_normalized = p2_angle%(2*math.pi)
@@ -283,7 +295,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
         # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, 0 * 16,
         #                 45 * 16)
-        self.setZValue(3)
+        # self.setZValue(3)
 
     def paint_arrow(self, painter, option, widget):
         # Draw the line itself.
@@ -339,7 +351,85 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         painter.drawPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
 
     def arc_shape(self):
-        pass
+        shape = QPainterPath()
+        # setting and getting initial variables we will use
+        angle_rad = math.radians(self.arc_angle)
+        node_radius = self.source.size / 2.0
+        arc_radius = node_radius * (0.60)
+        centers_distance = node_radius+(2*arc_radius/3.0)
+
+        # calculate x, y position of the arc center from the node center
+        arc_center_x = math.cos(angle_rad) * (centers_distance)
+        arc_center_y = math.sin(angle_rad) * (centers_distance)
+
+
+        # Visual Debug
+        # painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
+
+        # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
+        # http://mathworld.wolfram.com/Circle-CircleIntersection.html
+        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(node_radius,2) + math.pow(arc_radius,2)) / float((2*centers_distance))
+        p1_cut_point_y = math.sqrt(math.pow(arc_radius,2) - math.pow(p1_cut_point_x,2))
+        p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
+        p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
+
+
+        transform = QTransform()
+        # # Translate also the painter to keep it sincronized to
+        transform.translate(arc_center_x, arc_center_y)
+        transform.rotate(180+self.arc_angle)
+        shape = transform.map(shape)
+        # painter.scale(-1,1)
+        # painter.rotate(180)
+
+        # shape.setPen(QtGui.QPen(QtCore.Qt.cyan, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # Debug visual information
+        # painter.drawEllipse(p1, 4, 4)
+        # painter.drawText(p1, "P1")
+        # # painter.drawText(p1, "      %s , %s" % (p1.x(), p1.y()))
+        # painter.drawEllipse(p2, 4, 4)
+        # painter.drawText(p2, "P2")
+        # # painter.drawText(p2, "      %s , %s" % (p2.x(), p2.y()))
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawText(0,40, "0x,40y")
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawText(40, 0, "40x,0y")
+
+        # Calculate the P1 and P2 angle on arc circle coordinates
+        p1_angle = math.atan2(p1.y(),p1.x())
+        p2_angle = math.atan2(p2.y(),p2.x())
+
+        p1_angle_normalized = p1_angle%(2*math.pi)
+        p2_angle_normalized = p2_angle%(2*math.pi)
+        differnece = abs(p1_angle_normalized - p2_angle_normalized) % (2*math.pi)
+        span_angle = (2*math.pi)-differnece if differnece < (math.pi) else differnece
+
+        p1_angle_degrees = math.degrees(p1_angle_normalized)
+        span_angle_degrees = math.degrees(span_angle)
+
+        shape.arcTo(-arc_radius, -arc_radius , arc_radius*2, arc_radius*2, p1_angle_degrees*16, span_angle_degrees*16)
+        # Expan the shape 2 pixels to be able to click on edge lines
+        stroker = QPainterPathStroker()
+        stroker.setWidth(2)
+        stroker.setJoinStyle(Qt.MiterJoin)
+        shape = (stroker.createStroke(shape) + shape).simplified()
+        return shape
+
+        # Visual debug
+        # painter.setPen(QtGui.QPen(QtCore.Qt.red, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16, 20 * 16)
+        # painter.setPen(QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, 0 * 16,
+        #                 45 * 16)
 
     def arrow_shape(self):
         shape_path = QPainterPath()
