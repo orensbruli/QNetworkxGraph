@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
@@ -211,42 +212,77 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         return new_path
 
     def paint_arc(self, painter, option, widget):
-        angle = 135
+        # setting and getting initial variables we will use
+        angle = 0
         angle_rad = math.radians(angle)
         node_radius = self.source.size/2.0
-        arc_radius = 2*node_radius/3.0
+        arc_radius = node_radius * (0.60)
         centers_distance = node_radius+(2*arc_radius/3.0)
-        arc_center_y = math.sin(angle_rad) * (centers_distance)
-        arc_center_x = math.cos(angle_rad) * (centers_distance)
-        painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
-                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        painter.drawEllipse(arc_center_x, arc_center_y, 4, 4)
 
+        # calculate x, y position of the arc center from the node center
+        arc_center_x = math.cos(angle_rad) * (centers_distance)
+        arc_center_y = math.sin(angle_rad) * (centers_distance)
+
+
+        # Visual Debug
+        # painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
+
+        # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
         # http://mathworld.wolfram.com/Circle-CircleIntersection.html
-        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(arc_radius,2) + math.pow(node_radius,2)) / float((2*centers_distance))
-        p1_cut_point_y = math.sqrt(math.pow(node_radius,2) - math.pow(p1_cut_point_x,2))
+        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(node_radius,2) + math.pow(arc_radius,2)) / float((2*centers_distance))
+        p1_cut_point_y = math.sqrt(math.pow(arc_radius,2) - math.pow(p1_cut_point_x,2))
         p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
         p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
-        transform = QTransform()
-        transform.rotate(angle)
-        p1 = transform.map(p1)
-        p2 = transform.map(p2)
 
 
-        painter.setPen(QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine,
+        # # Translate also the painter to keep it sincronized to
+        painter.translate(arc_center_x, arc_center_y)
+        painter.rotate(180+angle)
+        # painter.scale(-1,1)
+        # painter.rotate(180)
+
+        painter.setPen(QtGui.QPen(QtCore.Qt.cyan, 1, QtCore.Qt.SolidLine,
                                   QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        painter.drawEllipse(p1, 4, 4)
-        painter.drawEllipse(p2, 4, 4)
+        # Debug visual information
+        # painter.drawEllipse(p1, 4, 4)
+        # painter.drawText(p1, "P1")
+        # # painter.drawText(p1, "      %s , %s" % (p1.x(), p1.y()))
+        # painter.drawEllipse(p2, 4, 4)
+        # painter.drawText(p2, "P2")
+        # # painter.drawText(p2, "      %s , %s" % (p2.x(), p2.y()))
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawText(0,40, "0x,40y")
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawText(40, 0, "40x,0y")
 
+        # Calculate the P1 and P2 angle on arc circle coordinates
+        p1_angle = math.atan2(p1.y(),p1.x())
+        p2_angle = math.atan2(p2.y(),p2.x())
 
-        init_angle = math.asin(math.radians((p2.x()-arc_center_x)/arc_radius))
-        final_angle = math.asin(math.radians(p1.x()/arc_radius))
+        p1_angle_normalized = p1_angle%(2*math.pi)
+        p2_angle_normalized = p2_angle%(2*math.pi)
+        differnece = abs(p1_angle_normalized - p2_angle_normalized) % (2*math.pi)
+        span_angle = (2*math.pi)-differnece if differnece < (math.pi) else differnece
 
+        p1_angle_degrees = math.degrees(p1_angle_normalized)
+        span_angle_degrees = math.degrees(span_angle)
 
-        painter.drawArc(arc_center_x, arc_center_y , 60, 60, 20*16, 180*16)
-        painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
-                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        painter.drawEllipse(0, 0, 4, 4)
+        painter.drawArc(-arc_radius, -arc_radius , arc_radius*2, arc_radius*2, p1_angle_degrees*16, span_angle_degrees*16)
+
+        # Visual debug
+        # painter.setPen(QtGui.QPen(QtCore.Qt.red, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16, 20 * 16)
+        # painter.setPen(QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine,
+        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, 0 * 16,
+        #                 45 * 16)
         self.setZValue(3)
 
     def paint_arrow(self, painter, option, widget):
