@@ -67,7 +67,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
-        self.arc_angle = 90
+        self.arc_angle = 315
         self.source_point = QtCore.QPointF()
         self.dest_point = QtCore.QPointF()
 
@@ -255,7 +255,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # painter.scale(-1,1)
         # painter.rotate(180)
 
-        painter.setPen(QtGui.QPen(QtCore.Qt.cyan, 1, QtCore.Qt.SolidLine,
+        painter.setPen(QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine,
                                   QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
         # Debug visual information
         # painter.drawEllipse(p1, 4, 4)
@@ -286,6 +286,44 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         span_angle_degrees = math.degrees(span_angle)
 
         painter.drawArc(-arc_radius, -arc_radius , arc_radius*2, arc_radius*2, p1_angle_degrees*16, span_angle_degrees*16)
+
+        # Arrows of the arc
+        source_arrow_p1 = self.source_point + QtCore.QPointF(
+            math.sin(
+                p1_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p1_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        source_arrow_p2 = self.source_point + QtCore.QPointF(
+            math.sin(
+                p1_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p1_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p1 = self.dest_point + QtCore.QPointF(
+            math.sin(
+                p2_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p2_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p2 = self.dest_point + QtCore.QPointF(
+            math.sin(
+                p2_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p2_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        painter.setBrush(QtCore.Qt.white)
+        if not self.is_directed:
+            painter.drawPolygon(QtGui.QPolygonF([self.source_point, source_arrow_p1, source_arrow_p2]))
+        painter.drawPolygon(QtGui.QPolygonF([self.dest_point, dest_arrow_p1, dest_arrow_p2]))
 
         # Visual debug
         # painter.setPen(QtGui.QPen(QtCore.Qt.red, 1, QtCore.Qt.SolidLine,
