@@ -3,11 +3,11 @@
 
 
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
+# TODO: Create a visualization window focused on changing colours, sizes, etc of nodes edges and background
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
 # TODO: Physic on label edges. Attraction to edge center, repulsion from near edges
-# TODO: Loop edges
-# TODO: contraction of a node (if its a tree an there's no loops)
+# TODO: contraction of a node (if its a tree and there's no loops)
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
@@ -22,6 +22,7 @@
 # Done: Create directed and not directed edges
 # Done: Fix: Context menu on edges depend on the bounding rect, so it's very large
 # Done: Make real zoom on the scene (+ and -)
+# Done: Loop edges
 
 
 import math
@@ -777,6 +778,12 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
 
+    def get_current_nodes_positions(self):
+        position_dict = {}
+        for node_label, item in self.nodes.items():
+            position_dict[node_label] = (item.pos().x(), item.pos().y())
+        return position_dict
+
     def set_scale_factor(self, scale_factor):
         self._scale_factor = scale_factor
 
@@ -945,7 +952,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
         #     self.node_positions = pos=nx.spring_layout(self.the_graph)
 
-    def add_context_menu(self, options, related_classes="graph"):
+    def add_context_menu(self, options, related_classes=["graph"]):
         """
         Add variable context menus actions to the graph elements.
 
@@ -1117,7 +1124,8 @@ class QNetworkxWindowExample(QMainWindow):
             "option 2": (self.network_controller, "print_something")
         }
         self.network_controller.set_elements_context_menus(a, ["edges"])
-        self.create_looped_graph()
+        print self.graph_widget.get_current_nodes_positions()
+        # self.create_looped_graph()
 
     def create_looped_graph(self):
         self.network_controller.delete_graph()
