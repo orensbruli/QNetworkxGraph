@@ -741,6 +741,9 @@ class QNetworkxWidget(QGraphicsView):
         super(QNetworkxWidget, self).__init__(parent)
 
         self.timerId = 0
+        self.backgroundColor = QColor(0, 0, 0)
+        self.lastPosition = None
+        self.panning_mode = False
 
         self.scene = QGraphicsScene(self)
         self.scene.setItemIndexMethod(QGraphicsScene.NoIndex)
@@ -763,6 +766,7 @@ class QNetworkxWidget(QGraphicsView):
         self.is_directed = directed
 
         self._scale_factor = 1.15
+        self.set_panning_mode(False)
 
     #     self.zoom_in_action = QAction("Zoom in", self)
     #     self.zoom_in_action.setShortcut("Ctrl++")
@@ -777,6 +781,16 @@ class QNetworkxWidget(QGraphicsView):
     #
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
+
+    def set_panning_mode(self, mode=False):
+        self.panning_mode = mode
+        if self.panning_mode:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        else:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+
 
     def get_current_nodes_positions(self):
         position_dict = {}
@@ -837,6 +851,34 @@ class QNetworkxWidget(QGraphicsView):
         else:
             super(QNetworkxWidget, self).keyPressEvent(event)
 
+    def mousePressEvent(self, event):
+        if self.panning_mode:
+            if event.button() == Qt.MidButton or (event.buttons() & Qt.RightButton and event.buttons() & Qt.LeftButton):
+                self.setDragMode(QGraphicsView.ScrollHandDrag)
+                self.lastPosition = event.pos()
+
+        QGraphicsView.mousePressEvent(self, event)
+
+    def mouseMoveEvent(self, event):
+        if self.panning_mode:
+            if self.dragMode() == QGraphicsView.ScrollHandDrag:
+                self.currentPosition = event.pos()
+                dx = self.currentPosition.x() - self.lastPosition.x()
+                dy = self.currentPosition.y() - self.lastPosition.y()
+                self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
+                self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
+                self.lastPosition = self.currentPosition
+
+        QGraphicsView.mouseMoveEvent(self, event)
+
+    def mouseReleaseEvent(self, event):
+        if self.panning_mode:
+            if event.button() == Qt.LeftButton:
+                self.leftMouseButtonClicked = False
+            self.setDragMode(QGraphicsView.NoDrag)
+
+        QGraphicsView.mouseReleaseEvent(self, event)
+
     def timerEvent(self, event):
         nodes = self.nodes.values()
 
@@ -861,7 +903,17 @@ class QNetworkxWidget(QGraphicsView):
         self.resize_scene()
 
     def resize_scene(self):
-        self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
+        if self.panning_mode:
+            rect = self.mapToScene(self.viewport().geometry()).boundingRect()
+            initial_height = rect.height()
+            initial_width = rect.width()
+            rect.setLeft(rect.left() - initial_width)
+            rect.setRight(rect.right() + initial_width)
+            rect.setTop(rect.top() - initial_height)
+            rect.setBottom(rect.bottom() + initial_height)
+            self.scene.setSceneRect(rect)
+        else:
+            self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
 
     def drawBackground(self, painter, rect):
         # Shadow.
@@ -880,7 +932,7 @@ class QNetworkxWidget(QGraphicsView):
                                    scene_rect.bottomRight())
         gradient.setColorAt(0, Qt.black)
         gradient.setColorAt(1, Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QBrush(Qt.black))
+        painter.fillRect(rect.intersect(scene_rect), QBrush(self.backgroundColor))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
