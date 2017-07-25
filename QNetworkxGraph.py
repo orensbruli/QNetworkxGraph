@@ -741,6 +741,9 @@ class QNetworkxWidget(QGraphicsView):
         super(QNetworkxWidget, self).__init__(parent)
 
         self.timerId = 0
+        self.backgroundColor = QColor(0, 0, 0)
+        self.lastPosition = None
+        self.leftMouseButtonClicked = False
 
         self.scene = QGraphicsScene(self)
         self.scene.setItemIndexMethod(QGraphicsScene.NoIndex)
@@ -751,8 +754,8 @@ class QNetworkxWidget(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
@@ -837,6 +840,45 @@ class QNetworkxWidget(QGraphicsView):
         else:
             super(QNetworkxWidget, self).keyPressEvent(event)
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.leftMouseButtonClicked = True
+
+        if event.button() == Qt.RightButton and self.leftMouseButtonClicked:
+            self.setDragMode(QGraphicsView.ScrollHandDrag)
+            self.lastPosition = event.pos()
+
+        if event.button() == Qt.MidButton:
+            self.setDragMode(QGraphicsView.ScrollHandDrag)
+            self.lastPosition = event.pos()
+
+        QGraphicsView.mousePressEvent(self, event)
+
+    def mouseMoveEvent(self, event):
+        if self.dragMode() == QGraphicsView.ScrollHandDrag:
+            self.currentPosition = event.pos()
+
+            dx = self.currentPosition.x() - self.lastPosition.x()
+            dy = self.currentPosition.y() - self.lastPosition.y()
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
+            self.lastPosition = self.currentPosition
+
+        QGraphicsView.mouseMoveEvent(self, event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.leftMouseButtonClicked = False
+            self.setDragMode(QGraphicsView.NoDrag)
+
+        if event.button() == Qt.RightButton:
+            self.setDragMode(QGraphicsView.NoDrag)
+
+        if event.button() == Qt.MidButton:
+            self.setDragMode(QGraphicsView.NoDrag)
+
+        QGraphicsView.mouseReleaseEvent(self, event)
+
     def timerEvent(self, event):
         nodes = self.nodes.values()
 
@@ -861,7 +903,14 @@ class QNetworkxWidget(QGraphicsView):
         self.resize_scene()
 
     def resize_scene(self):
-        self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
+        rect = self.mapToScene(self.viewport().geometry()).boundingRect()
+        initialHeight = rect.height()
+        initialWidth = rect.width()
+        rect.setLeft(rect.left() - initialWidth)
+        rect.setRight(rect.right() + initialWidth)
+        rect.setTop(rect.top() - initialHeight)
+        rect.setBottom(rect.bottom() + initialHeight)
+        self.scene.setSceneRect(rect)
 
     def drawBackground(self, painter, rect):
         # Shadow.
@@ -880,7 +929,7 @@ class QNetworkxWidget(QGraphicsView):
                                    scene_rect.bottomRight())
         gradient.setColorAt(0, Qt.black)
         gradient.setColorAt(1, Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QBrush(Qt.black))
+        painter.fillRect(rect.intersect(scene_rect), QBrush(self.backgroundColor))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
