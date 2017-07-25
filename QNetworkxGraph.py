@@ -11,7 +11,7 @@
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
-# FIX: The circunference of a selected node appears cutted up, down, right and left.
+# FIX: The circumference of a selected node appears cutted up, down, right and left.
 # TODO: Multiple selection and deselection
 # TODO: Create gravity centers for group of nodes
 
@@ -25,18 +25,17 @@
 # Done: Loop edges
 
 
-import math
-
 import logging
+import math
+from random import uniform
+
 import networkx as nx
-import numpy
 from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
     QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
     QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
-from random import uniform
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -115,11 +114,11 @@ class QEdgeGraphicItem(QGraphicsItem):
             return
 
         if self.source != self.dest:
-            sceneLine = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
+            scene_line = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
 
-            sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
+            scene_line_center = QPointF((scene_line.x1() + scene_line.x2()) / 2, (scene_line.y1() + scene_line.y2()) / 2)
 
-            self.setPos(sceneLine_center)
+            self.setPos(scene_line_center)
 
             line = QLineF(self.mapFromItem(self.source, 0, 0),
                           self.mapFromItem(self.dest, 0, 0))
@@ -156,7 +155,7 @@ class QEdgeGraphicItem(QGraphicsItem):
             #                           Qt.RoundCap, Qt.RoundJoin))
             # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
 
-            # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
+            # calculate the P1 and P2 points where both circles cut (on arc coordinate)
             # http://mathworld.wolfram.com/Circle-CircleIntersection.html
             p1_cut_point_x = (math.pow(centers_distance, 2) - math.pow(node_radius, 2) + math.pow(arc_radius,
                                                                                                   2)) / float(
@@ -745,9 +744,10 @@ class QNetworkxWidget(QGraphicsView):
     def __init__(self, directed=False, parent=None):
         super(QNetworkxWidget, self).__init__(parent)
 
-        self.timerId = 0
-        self.backgroundColor = QColor(0, 0, 0)
-        self.lastPosition = None
+        self.timer_id = 0
+        self.background_color = QColor(0, 0, 0)
+        self.last_position = None
+        self.current_position = None
         self.panning_mode = False
 
         self.scene = QGraphicsScene(self)
@@ -796,7 +796,6 @@ class QNetworkxWidget(QGraphicsView):
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
-
     def get_current_nodes_positions(self):
         position_dict = {}
         for node_label, item in self.nodes.items():
@@ -807,8 +806,8 @@ class QNetworkxWidget(QGraphicsView):
         self._scale_factor = scale_factor
 
     def item_moved(self):
-        if not self.timerId:
-            self.timerId = self.startTimer(1000 / 25)
+        if not self.timer_id:
+            self.timer_id = self.startTimer(1000 / 25)
 
     def add_node(self, label=None):
         if label is None:
@@ -860,26 +859,24 @@ class QNetworkxWidget(QGraphicsView):
         if self.panning_mode:
             if event.button() == Qt.MidButton or (event.buttons() & Qt.RightButton and event.buttons() & Qt.LeftButton):
                 self.setDragMode(QGraphicsView.ScrollHandDrag)
-                self.lastPosition = event.pos()
+                self.last_position = event.pos()
 
         QGraphicsView.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
         if self.panning_mode:
             if self.dragMode() == QGraphicsView.ScrollHandDrag:
-                self.currentPosition = event.pos()
-                dx = self.currentPosition.x() - self.lastPosition.x()
-                dy = self.currentPosition.y() - self.lastPosition.y()
+                self.current_position = event.pos()
+                dx = self.current_position.x() - self.last_position.x()
+                dy = self.current_position.y() - self.last_position.y()
                 self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
                 self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
-                self.lastPosition = self.currentPosition
+                self.last_position = self.current_position
 
         QGraphicsView.mouseMoveEvent(self, event)
 
     def mouseReleaseEvent(self, event):
         if self.panning_mode:
-            if event.button() == Qt.LeftButton:
-                self.leftMouseButtonClicked = False
             self.setDragMode(QGraphicsView.NoDrag)
 
         QGraphicsView.mouseReleaseEvent(self, event)
@@ -896,8 +893,8 @@ class QNetworkxWidget(QGraphicsView):
                 items_moved = True
 
         if not items_moved:
-            self.killTimer(self.timerId)
-            self.timerId = 0
+            self.killTimer(self.timer_id)
+            self.timer_id = 0
 
     def wheelEvent(self, event):
         self.scale_view(math.pow(2.0, -event.delta() / 240.0))
@@ -937,7 +934,7 @@ class QNetworkxWidget(QGraphicsView):
                                    scene_rect.bottomRight())
         gradient.setColorAt(0, Qt.black)
         gradient.setColorAt(1, Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QBrush(self.backgroundColor))
+        painter.fillRect(rect.intersect(scene_rect), QBrush(self.background_color))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
