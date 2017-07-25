@@ -754,8 +754,8 @@ class QNetworkxWidget(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
@@ -903,14 +903,8 @@ class QNetworkxWidget(QGraphicsView):
         self.resize_scene()
 
     def resize_scene(self):
-        rect = self.mapToScene(self.viewport().geometry()).boundingRect()
-        initialHeight = rect.height()
-        initialWidth = rect.width()
-        rect.setLeft(rect.left() - initialWidth)
-        rect.setRight(rect.right() + initialWidth)
-        rect.setTop(rect.top() - initialHeight)
-        rect.setBottom(rect.bottom() + initialHeight)
-        self.scene.setSceneRect(rect)
+        self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
+
 
     def drawBackground(self, painter, rect):
         # Shadow.
