@@ -613,7 +613,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
 
     def advance(self):
-        if self.newPos == self.pos():
+        if self.newPos == self.pos() or self.isSelected():
             return False
 
         self.setPos(self.newPos)
@@ -650,6 +650,11 @@ class QNodeGraphicItem(QGraphicsItem):
             gradient.setColorAt(0, QColor(Qt.black).light(120))
             pen = QPen(Qt.lightGray)
             pen.setWidth(self.border_width * 2)
+        elif option.state & QStyle.State_Selected:
+            gradient.setColorAt(0, Qt.blue)
+            gradient.setColorAt(1, Qt.darkBlue)
+            pen = QPen(QColor(255, 0, 0, 255))
+            pen.setWidth(self.border_width)
         else:
             gradient.setColorAt(0, Qt.blue)
             gradient.setColorAt(1, Qt.darkBlue)
