@@ -792,12 +792,16 @@ class QNetworkxWidget(QGraphicsView):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
 
     def on_selection_change(self):
+        selected_nodes = self.selected_nodes()
+        self.node_selection_changed.emit(selected_nodes)
+
+    def selected_nodes(self):
         changed = self.scene.selectedItems()
         selected_nodes = []
         for item in changed:
             if isinstance(item, QNodeGraphicItem):
                 selected_nodes.append(item.label.toPlainText())
-        self.node_selection_changed.emit(selected_nodes)
+        return selected_nodes
 
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
