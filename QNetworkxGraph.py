@@ -988,21 +988,6 @@ class QNetworkxWidget(QGraphicsView):
         self.scale(scale_factor, scale_factor)
         self.resize_scene()
 
-        # def graph_example(self):
-        #     self.the_graph.add_nodes_from([1, 2, 3, 4])
-        #     self.the_graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
-        #     self.the_graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
-        #
-        #     # X = set(n for n, d in self.the_graph.nodes(data=True) if d['bipartite'] == 0)
-        #     # Y = set(self.the_graph) - X
-        #     #
-        #     # X = sorted(X, reverse=True)
-        #     # Y = sorted(Y, reverse=True)
-        #     #
-        #     # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
-        #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
-        #     self.node_positions = pos=nx.spring_layout(self.the_graph)
-
     def add_context_menu(self, options, related_classes=["graph"]):
         """
         Add variable context menus actions to the graph elements.
