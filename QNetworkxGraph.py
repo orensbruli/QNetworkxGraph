@@ -3,15 +3,15 @@
 
 
 # TODO: Create a color/sizes scheme for nodes, edges and background (may be with a json file)
+# TODO: Create a visualization window focused on changing colours, sizes, etc of nodes edges and background
 # TODO: Menu to add the different predefined Networkx Graphs (Graph generators)
 #       https://networkx.github.io/documentation/development/reference/generators.html?highlight=generato
 # TODO: Physic on label edges. Attraction to edge center, repulsion from near edges
-# TODO: Loop edges
-# TODO: contraction of a node (if its a tree an there's no loops)
+# TODO: contraction of a node (if its a tree and there's no loops)
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
-# FIX: The circunference of a selected node appears cutted up, down, right and left.
+# FIX: The circumference of a selected node appears cutted up, down, right and left.
 # TODO: Multiple selection and deselection
 # TODO: Create gravity centers for group of nodes
 
@@ -22,20 +22,20 @@
 # Done: Create directed and not directed edges
 # Done: Fix: Context menu on edges depend on the bounding rect, so it's very large
 # Done: Make real zoom on the scene (+ and -)
+# Done: Loop edges
 
-
-import math
 
 import logging
+import math
+from random import uniform
+
 import networkx as nx
-import numpy
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import QString, QPointF, Qt, QRectF
+from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
     QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
-    QTransform
+    QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
+    QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
-from random import uniform
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -55,25 +55,26 @@ logger.addHandler(console_handler)
 logger.info('Created main logger')
 
 
-class QEdgeGraphicItem(QtGui.QGraphicsItem):
+class QEdgeGraphicItem(QGraphicsItem):
     Pi = math.pi
     TwoPi = 2.0 * Pi
 
-    Type = QtGui.QGraphicsItem.UserType + 2
+    Type = QGraphicsItem.UserType + 2
 
-    def __init__(self, source_node, dest_node, label=None, directed = False):
+    def __init__(self, source_node, dest_node, label=None, directed=False):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
         self._logger.setLevel(logging.DEBUG)
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
-        self.source_point = QtCore.QPointF()
-        self.dest_point = QtCore.QPointF()
+        self.arc_angle = 315
+        self.source_point = QPointF()
+        self.dest_point = QPointF()
 
-        self.setAcceptedMouseButtons(QtCore.Qt.NoButton)
-        self.setFlag(QtGui.QGraphicsItem.ItemIsMovable)
-        # self.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
-        # self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
+        self.setAcceptedMouseButtons(Qt.NoButton)
+        self.setFlag(QGraphicsItem.ItemIsMovable)
+        # self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
+        # self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
         self.source = source_node
         self.dest = dest_node
         self.node_size = 10
@@ -84,7 +85,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 label = ''
         self.label = QGraphicsTextItem(label, self)
         self.label.setParentItem(self)
-        self.label.setDefaultTextColor(QtCore.Qt.white)
+        self.label.setDefaultTextColor(Qt.white)
         self.source.add_edge(self)
         self.dest.add_edge(self)
         self.adjust()
@@ -112,45 +113,77 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         if not self.source or not self.dest:
             return
 
-        sceneLine = QtCore.QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
+        if self.source != self.dest:
+            scene_line = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
 
-        sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
+            scene_line_center = QPointF((scene_line.x1() + scene_line.x2()) / 2, (scene_line.y1() + scene_line.y2()) / 2)
 
-        self.setPos(sceneLine_center)
+            self.setPos(scene_line_center)
 
-        line = QtCore.QLineF(self.mapFromItem(self.source, 0, 0),
-                             self.mapFromItem(self.dest, 0, 0))
-        nodes_center_distance = line.length()
+            line = QLineF(self.mapFromItem(self.source, 0, 0),
+                          self.mapFromItem(self.dest, 0, 0))
+            nodes_center_distance = line.length()
 
-        self.prepareGeometryChange()
+            self.prepareGeometryChange()
 
-        source_node_radius = self.source.boundingRect().width() / 2
-        dest_node_radius = self.dest.boundingRect().width() / 2
-        if nodes_center_distance > source_node_radius + dest_node_radius + 6:
-            edge_offset = QtCore.QPointF((line.dx() * source_node_radius) / nodes_center_distance,
-                                         (line.dy() * dest_node_radius) / nodes_center_distance)
+            source_node_radius = self.source.boundingRect().width() / 2
+            dest_node_radius = self.dest.boundingRect().width() / 2
+            if nodes_center_distance > source_node_radius + dest_node_radius + 6:
+                edge_offset = QPointF((line.dx() * source_node_radius) / nodes_center_distance,
+                                      (line.dy() * dest_node_radius) / nodes_center_distance)
 
-            self.source_point = line.p1() + edge_offset
-            self.dest_point = line.p2() - edge_offset
+                self.source_point = line.p1() + edge_offset
+                self.dest_point = line.p2() - edge_offset
+            else:
+                self.source_point = line.p1()
+                self.dest_point = line.p1()
+                # self.setPos(self.mapToParent(self.boundingRect().center()))
+                # print "Adjust of %s" % self.label.toPlainText()
         else:
-            self.source_point = line.p1()
-            self.dest_point = line.p1()
-        # self.setPos(self.mapToParent(self.boundingRect().center()))
-        # print "Adjust of %s" % self.label.toPlainText()
+            # setting and getting initial variables we will use
+            angle_rad = math.radians(self.arc_angle)
+            node_radius = self.source.size / 2.0
+            arc_radius = node_radius * 0.60
+            centers_distance = node_radius + (2 * arc_radius / 3.0)
+
+            # calculate x, y position of the arc center from the node center
+            arc_center_x = math.cos(angle_rad) * centers_distance
+            arc_center_y = math.sin(angle_rad) * centers_distance
+
+            # Visual Debug
+            # painter.setPen(QPen(Qt.blue, 1, Qt.SolidLine,
+            #                           Qt.RoundCap, Qt.RoundJoin))
+            # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
+
+            # calculate the P1 and P2 points where both circles cut (on arc coordinate)
+            # http://mathworld.wolfram.com/Circle-CircleIntersection.html
+            p1_cut_point_x = (math.pow(centers_distance, 2) - math.pow(node_radius, 2) + math.pow(arc_radius,
+                                                                                                  2)) / float(
+                (2 * centers_distance))
+            p1_cut_point_y = math.sqrt(math.pow(arc_radius, 2) - math.pow(p1_cut_point_x, 2))
+            p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
+            p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
+            self.setPos(self.source.pos().x() + arc_center_x, self.source.pos().y() + arc_center_y)
+            self.prepareGeometryChange()
+            self.source_point = p1
+            self.dest_point = p2
 
     def boundingRect(self):
         if not self.source or not self.dest:
-            return QtCore.QRectF()
+            return QRectF()
 
-        pen_width = 1.0
-        extra = (pen_width + self.arrowSize) / 2.0
-        return QtCore.QRectF(-800,-800,1600,1600)
-        # return QtCore.QRectF(self.source_point,
-        #                      QtCore.QSizeF(self.dest_point.x() - self.source_point.x(),
-        #                                    self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
-        #                                                                                                        -extra,
-        #                                                                                                        extra,
-        #                                                                                                        extra)
+        if self.source != self.dest:
+            pen_width = 1.0
+            extra = (pen_width + self.arrowSize) / 2.0
+            return QRectF(self.source_point,
+                          QSizeF(self.dest_point.x() - self.source_point.x(),
+                                 self.dest_point.y() - self.source_point.y())).normalized().adjusted(-extra,
+                                                                                                     -extra,
+                                                                                                     extra,
+                                                                                                     extra)
+        else:
+            return self.arc_shape().boundingRect().adjusted(0, 0, +1, +1)
+            # return QRectF(-2000,-2000, 4000, 4000)
 
     def paint(self, painter, option, widget):
         if not self.source or not self.dest:
@@ -160,23 +193,22 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
             self.paint_arc(painter, option, widget)
         else:
             self.paint_arrow(painter, option, widget)
-        # if self.label:
-        #     # Calculate edge center
-        #     # Calculate label width
-        #     # Draw label background
-        #     # Draw label text
-        #     painter.drawText(QRect(x_coord, y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
-        # QtGui.QGraphicsItem.paint(self,painter,option,widget)
+            # if self.label:
+            #     # Calculate edge center
+            #     # Calculate label width
+            #     # Draw label background
+            #     # Draw label text
+            #     painter.drawText(QRect(x_coord, y_coord, width, height), Qt.AlignCenter, str(self.label))
+            # QGraphicsItem.paint(self,painter,option,widget)
 
-        # Debug
-        # painter.setBrush(QtCore.Qt.NoBrush)
-        # painter.setPen(QtCore.Qt.red)
-        # painter.drawRect(self.boundingRect())
-        # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
-        # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
-        # painter.drawPath(self.shape())
-
-
+            # Debug
+            # painter.setBrush(Qt.NoBrush)
+            # painter.setPen(Qt.red)
+            # painter.drawRect(self.boundingRect())
+            # self.label.setPlainText("%s - %s (length = %s" % (self.scenePos().x(), self.scenePos().y(), line.length()))
+            # print str(self.scenePos().x()) + " " + str(self.scenePos().y())
+            # painter.drawPath(self.shape())
+            # painter.drawRect(self.shape().boundingRect())
 
     def add_context_menu(self, options):
         """
@@ -213,38 +245,16 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
 
     def paint_arc(self, painter, option, widget):
         # setting and getting initial variables we will use
-        angle = 0
-        angle_rad = math.radians(angle)
-        node_radius = self.source.size/2.0
-        arc_radius = node_radius * (0.60)
-        centers_distance = node_radius+(2*arc_radius/3.0)
-
-        # calculate x, y position of the arc center from the node center
-        arc_center_x = math.cos(angle_rad) * (centers_distance)
-        arc_center_y = math.sin(angle_rad) * (centers_distance)
-
-
-        # Visual Debug
-        # painter.setPen(QtGui.QPen(QtCore.Qt.blue, 1, QtCore.Qt.SolidLine,
-        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
-        # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
-
-        # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
-        # http://mathworld.wolfram.com/Circle-CircleIntersection.html
-        p1_cut_point_x = (math.pow(centers_distance,2) - math.pow(node_radius,2) + math.pow(arc_radius,2)) / float((2*centers_distance))
-        p1_cut_point_y = math.sqrt(math.pow(arc_radius,2) - math.pow(p1_cut_point_x,2))
-        p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
-        p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
-
-
-        # # Translate also the painter to keep it sincronized to
-        painter.translate(arc_center_x, arc_center_y)
-        painter.rotate(180+angle)
+        node_radius = self.source.size / 2.0
+        arc_radius = node_radius * 0.60
+        # # Translate also the painter to keep it synchronized to
+        # painter.translate(arc_center_x, arc_center_y)
+        painter.rotate(180 + self.arc_angle)
         # painter.scale(-1,1)
         # painter.rotate(180)
 
-        painter.setPen(QtGui.QPen(QtCore.Qt.cyan, 1, QtCore.Qt.SolidLine,
-                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        painter.setPen(QPen(Qt.white, 1, Qt.SolidLine,
+                            Qt.RoundCap, Qt.RoundJoin))
         # Debug visual information
         # painter.drawEllipse(p1, 4, 4)
         # painter.drawText(p1, "P1")
@@ -262,38 +272,77 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         # painter.drawText(40, 0, "40x,0y")
 
         # Calculate the P1 and P2 angle on arc circle coordinates
-        p1_angle = math.atan2(p1.y(),p1.x())
-        p2_angle = math.atan2(p2.y(),p2.x())
+        p1_angle = math.atan2(self.source_point.y(), self.source_point.x())
+        p2_angle = math.atan2(self.dest_point.y(), self.dest_point.x())
 
-        p1_angle_normalized = p1_angle%(2*math.pi)
-        p2_angle_normalized = p2_angle%(2*math.pi)
-        differnece = abs(p1_angle_normalized - p2_angle_normalized) % (2*math.pi)
-        span_angle = (2*math.pi)-differnece if differnece < (math.pi) else differnece
+        p1_angle_normalized = p1_angle % (2 * math.pi)
+        p2_angle_normalized = p2_angle % (2 * math.pi)
+        difference = abs(p1_angle_normalized - p2_angle_normalized) % (2 * math.pi)
+        span_angle = (2 * math.pi) - difference if difference < math.pi else difference
 
         p1_angle_degrees = math.degrees(p1_angle_normalized)
         span_angle_degrees = math.degrees(span_angle)
 
-        painter.drawArc(-arc_radius, -arc_radius , arc_radius*2, arc_radius*2, p1_angle_degrees*16, span_angle_degrees*16)
+        painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16,
+                        span_angle_degrees * 16)
+
+        # Arrows of the arc
+        source_arrow_p1 = self.source_point + QPointF(
+            math.sin(
+                p1_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p1_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        source_arrow_p2 = self.source_point + QPointF(
+            math.sin(
+                p1_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p1_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p1 = self.dest_point + QPointF(
+            math.sin(
+                p2_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p2_angle - QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        dest_arrow_p2 = self.dest_point + QPointF(
+            math.sin(
+                p2_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize,
+            math.cos(
+                p2_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
+            ) * self.arrowSize)
+
+        painter.setBrush(Qt.white)
+        if not self.is_directed:
+            painter.drawPolygon(QPolygonF([self.source_point, source_arrow_p1, source_arrow_p2]))
+        painter.drawPolygon(QPolygonF([self.dest_point, dest_arrow_p1, dest_arrow_p2]))
 
         # Visual debug
-        # painter.setPen(QtGui.QPen(QtCore.Qt.red, 1, QtCore.Qt.SolidLine,
-        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.setPen(QPen(Qt.red, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
         # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16, 20 * 16)
-        # painter.setPen(QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine,
-        #                           QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        # painter.setPen(QPen(Qt.yellow, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
         # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, 0 * 16,
         #                 45 * 16)
-        self.setZValue(3)
+        # self.setZValue(3)
 
     def paint_arrow(self, painter, option, widget):
         # Draw the line itself.
-        line = QtCore.QLineF(self.source_point, self.dest_point)
+        line = QLineF(self.source_point, self.dest_point)
 
         if line.length() == 0.0:
             return
 
-        painter.setPen(QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine,
-                                  QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+        painter.setPen(QPen(Qt.white, 1, Qt.SolidLine,
+                            Qt.RoundCap, Qt.RoundJoin))
         painter.drawLine(line)
 
         # Draw the arrows if there's enough room.
@@ -301,7 +350,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         if line.dy() >= 0:
             angle = QEdgeGraphicItem.TwoPi - angle
 
-        source_arrow_p1 = self.source_point + QtCore.QPointF(
+        source_arrow_p1 = self.source_point + QPointF(
             math.sin(
                 angle + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -309,7 +358,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        source_arrow_p2 = self.source_point + QtCore.QPointF(
+        source_arrow_p2 = self.source_point + QPointF(
             math.sin(
                 angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -317,7 +366,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        dest_arrow_p1 = self.dest_point + QtCore.QPointF(
+        dest_arrow_p1 = self.dest_point + QPointF(
             math.sin(
                 angle - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -325,7 +374,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        dest_arrow_p2 = self.dest_point + QtCore.QPointF(
+        dest_arrow_p2 = self.dest_point + QPointF(
             math.sin(
                 angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -333,13 +382,91 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        painter.setBrush(QtCore.Qt.white)
+        painter.setBrush(Qt.white)
         if not self.is_directed:
-            painter.drawPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
-        painter.drawPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
+            painter.drawPolygon(QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
+        painter.drawPolygon(QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
 
     def arc_shape(self):
-        pass
+        shape = QPainterPath()
+        # setting and getting initial variables we will use
+        angle_rad = math.radians(self.arc_angle)
+        node_radius = self.source.size / 2.0
+        arc_radius = node_radius * 0.60
+        centers_distance = node_radius + (2 * arc_radius / 3.0)
+
+        # calculate x, y position of the arc center from the node center
+        arc_center_x = math.cos(angle_rad) * centers_distance
+        arc_center_y = math.sin(angle_rad) * centers_distance
+
+        # Visual Debug
+        # painter.setPen(QPen(Qt.blue, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
+        # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
+
+        # calculate the P1 and P2 points where both circles cut (on arc coordinate)
+        # http://mathworld.wolfram.com/Circle-CircleIntersection.html
+        p1_cut_point_x = (math.pow(centers_distance, 2) - math.pow(node_radius, 2) + math.pow(arc_radius, 2)) / float(
+            (2 * centers_distance))
+        p1_cut_point_y = math.sqrt(math.pow(arc_radius, 2) - math.pow(p1_cut_point_x, 2))
+        p1 = QPointF(p1_cut_point_x, p1_cut_point_y)
+        p2 = QPointF(p1_cut_point_x, -p1_cut_point_y)
+
+        transform = QTransform()
+        # # Translate also the painter to keep it synchronized to
+        transform.translate(arc_center_x, arc_center_y)
+        transform.rotate(180 + self.arc_angle)
+        shape = transform.map(shape)
+        # painter.scale(-1,1)
+        # painter.rotate(180)
+
+        # shape.setPen(QPen(Qt.cyan, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
+        # Debug visual information
+        # painter.drawEllipse(p1, 4, 4)
+        # painter.drawText(p1, "P1")
+        # # painter.drawText(p1, "      %s , %s" % (p1.x(), p1.y()))
+        # painter.drawEllipse(p2, 4, 4)
+        # painter.drawText(p2, "P2")
+        # # painter.drawText(p2, "      %s , %s" % (p2.x(), p2.y()))
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2,-2, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawEllipse(-2, 40, 4, 4)
+        # painter.drawText(0,40, "0x,40y")
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawEllipse(40, -2, 4, 4)
+        # painter.drawText(40, 0, "40x,0y")
+
+        # Calculate the P1 and P2 angle on arc circle coordinates
+        p1_angle = math.atan2(p1.y(), p1.x())
+        p2_angle = math.atan2(p2.y(), p2.x())
+
+        p1_angle_normalized = p1_angle % (2 * math.pi)
+        p2_angle_normalized = p2_angle % (2 * math.pi)
+        difference = abs(p1_angle_normalized - p2_angle_normalized) % (2 * math.pi)
+        span_angle = (2 * math.pi) - difference if difference < math.pi else difference
+
+        p1_angle_degrees = math.degrees(p1_angle_normalized)
+        span_angle_degrees = math.degrees(span_angle)
+
+        shape.arcTo(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16,
+                    span_angle_degrees * 16)
+        # Expand the shape 2 pixels to be able to click on edge lines
+        stroker = QPainterPathStroker()
+        stroker.setWidth(2)
+        stroker.setJoinStyle(Qt.MiterJoin)
+        shape = (stroker.createStroke(shape) + shape).simplified()
+        return shape
+
+        # Visual debug
+        # painter.setPen(QPen(Qt.red, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, p1_angle_degrees * 16, 20 * 16)
+        # painter.setPen(QPen(Qt.yellow, 1, Qt.SolidLine,
+        #                           Qt.RoundCap, Qt.RoundJoin))
+        # painter.drawArc(-arc_radius, -arc_radius, arc_radius * 2, arc_radius * 2, 0 * 16,
+        #                 45 * 16)
 
     def arrow_shape(self):
         shape_path = QPainterPath()
@@ -347,7 +474,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
             return
 
             # Draw the line itself.
-        line = QtCore.QLineF(self.source_point, self.dest_point)
+        line = QLineF(self.source_point, self.dest_point)
 
         if line.length() == 0.0:
             return
@@ -357,7 +484,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
         if line.dy() >= 0:
             angle = QEdgeGraphicItem.TwoPi - angle
 
-        source_arrow_p1 = self.source_point + QtCore.QPointF(
+        source_arrow_p1 = self.source_point + QPointF(
             math.sin(
                 angle + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -365,7 +492,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        source_arrow_p2 = self.source_point + QtCore.QPointF(
+        source_arrow_p2 = self.source_point + QPointF(
             math.sin(
                 angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -373,7 +500,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle + QEdgeGraphicItem.Pi - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        dest_arrow_p1 = self.dest_point + QtCore.QPointF(
+        dest_arrow_p1 = self.dest_point + QPointF(
             math.sin(
                 angle - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -381,7 +508,7 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
                 angle - QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        dest_arrow_p2 = self.dest_point + QtCore.QPointF(
+        dest_arrow_p2 = self.dest_point + QPointF(
             math.sin(
                 angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize,
@@ -390,21 +517,21 @@ class QEdgeGraphicItem(QtGui.QGraphicsItem):
             ) * self.arrowSize)
 
         if not self.is_directed:
-            shape_path.addPolygon(QtGui.QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
+            shape_path.addPolygon(QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
         shape_path.moveTo(self.source_point)
         shape_path.lineTo(self.dest_point)
-        shape_path.addPolygon(QtGui.QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
+        shape_path.addPolygon(QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
 
-        # Expan the shape 2 pixels to be able to click on edge lines
+        # Expand the shape 2 pixels to be able to click on edge lines
         stroker = QPainterPathStroker()
         stroker.setWidth(2)
         stroker.setJoinStyle(Qt.MiterJoin)
         new_path = (stroker.createStroke(shape_path) + shape_path).simplified()
-        return  new_path
+        return new_path
 
 
-class QNodeGraphicItem(QtGui.QGraphicsItem):
-    Type = QtGui.QGraphicsItem.UserType + 1
+class QNodeGraphicItem(QGraphicsItem):
+    Type = QGraphicsItem.UserType + 1
 
     def __init__(self, graph_widget, label):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
@@ -413,17 +540,18 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
 
         self.graph = graph_widget
         self.edgeList = []
-        self.newPos = QtCore.QPointF()
+        self.newPos = QPointF()
 
-        self.setFlag(QtGui.QGraphicsItem.ItemIsMovable)
-        self.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
-        self.setCacheMode(QtGui.QGraphicsItem.DeviceCoordinateCache)
+        self.setFlag(QGraphicsItem.ItemIsMovable)
+        self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
+        self.setFlag(QGraphicsItem.ItemIsSelectable)
+        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
         self.setZValue(1)
         self.size = 40
         self.border_width = 4
         self.label = QGraphicsTextItem(str(label))
         self.label.setParentItem(self)
-        self.label.setDefaultTextColor(QtCore.Qt.white)
+        self.label.setDefaultTextColor(Qt.white)
         rect = self.label.boundingRect()
         self.label.setPos(-rect.width() / 2, -rect.height() / 2)
         self.animate = True
@@ -452,8 +580,8 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             if not isinstance(item, QNodeGraphicItem):
                 continue
 
-            line = QtCore.QLineF(self.mapFromItem(item, 0, 0),
-                                 QtCore.QPointF(0, 0))
+            line = QLineF(self.mapFromItem(item, 0, 0),
+                          QPointF(0, 0))
             dx = line.dx()
             dy = line.dy()
             l = 2.0 * (dx * dx + dy * dy)
@@ -475,16 +603,16 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         xvel -= (self.pos().x() / 2) / (weight / 4)
         yvel -= (self.pos().y() / 2) / (weight / 4)
 
-        if QtCore.qAbs(xvel) < 0.1 and QtCore.qAbs(yvel) < 0.1:
+        if qAbs(xvel) < 0.1 and qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
 
         scene_rect = self.scene().sceneRect()
-        self.newPos = self.pos() + QtCore.QPointF(xvel, yvel)
+        self.newPos = self.pos() + QPointF(xvel, yvel)
         self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
 
     def advance(self):
-        if self.newPos == self.pos():
+        if self.newPos == self.pos() or self.isSelected():
             return False
 
         self.setPos(self.newPos)
@@ -493,13 +621,13 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
     def boundingRect(self):
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width / 2
         width = height = 2 + self.size + self.border_width / 2
-        return QtCore.QRectF(x_coord, y_coord, width,
-                             height)
+        return QRectF(x_coord, y_coord, width,
+                      height)
 
     def shape(self):
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
-        path = QtGui.QPainterPath()
+        path = QPainterPath()
         path.addEllipse(x_coord, y_coord, width, height)
         return path
 
@@ -508,41 +636,46 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         width = height = self.size
         painter.save()
         # Draw the shadow
-        # painter.setPen(QtCore.Qt.NoPen)
-        # painter.setBrush(QtCore.Qt.darkGray)
+        # painter.setPen(Qt.NoPen)
+        # painter.setBrush(Qt.darkGray)
         # painter.drawEllipse(x_coord+3, y_coord+3, width, height)
 
         # Gradient depends on the image selected or not
-        gradient = QtGui.QRadialGradient(-3, -3, 10)
-        if option.state & QtGui.QStyle.State_Sunken:
+        gradient = QRadialGradient(-3, -3, 10)
+        if option.state & QStyle.State_Sunken:
             gradient.setCenter(3, 3)
             gradient.setFocalPoint(3, 3)
-            gradient.setColorAt(1, QtGui.QColor(QtCore.Qt.lightGray).light(120))
-            gradient.setColorAt(0, QtGui.QColor(QtCore.Qt.black).light(120))
-            pen = QtGui.QPen(QtCore.Qt.lightGray)
+            gradient.setColorAt(1, QColor(Qt.lightGray).light(120))
+            gradient.setColorAt(0, QColor(Qt.black).light(120))
+            pen = QPen(Qt.lightGray)
             pen.setWidth(self.border_width * 2)
+        elif option.state & QStyle.State_Selected:
+            gradient.setColorAt(0, Qt.blue)
+            gradient.setColorAt(1, Qt.darkBlue)
+            pen = QPen(QColor(255, 0, 0, 255))
+            pen.setWidth(self.border_width)
         else:
-            gradient.setColorAt(0, QtCore.Qt.blue)
-            gradient.setColorAt(1, QtCore.Qt.darkBlue)
-            pen = QtGui.QPen(QtGui.QColor(200, 0, 100, 127))
+            gradient.setColorAt(0, Qt.blue)
+            gradient.setColorAt(1, Qt.darkBlue)
+            pen = QPen(QColor(200, 0, 100, 127))
             pen.setWidth(self.border_width)
 
         # Fill with gradient
-        painter.setBrush(QtGui.QBrush(QtGui.QColor(100, 0, 200, 127)))
+        painter.setBrush(QBrush(QColor(100, 0, 200, 127)))
         # Set the outline pen color
 
         painter.setPen(pen)
         # Draw the circle
         painter.drawEllipse(x_coord, y_coord, width, height)
-        # painter.setPen(QtCore.Qt.white)
-        # painter.drawText(QRect(x_coord,y_coord, width, height), QtCore.Qt.AlignCenter, str(self.label))
+        # painter.setPen(Qt.white)
+        # painter.drawText(QRect(x_coord,y_coord, width, height), Qt.AlignCenter, str(self.label))
         painter.restore()
         # self.setOpacity(0.5)
         # print "Node: " + str(self.scenePos().x()) + " " + str(self.scenePos().y())
 
         # Debug
-        # painter.setBrush(QtCore.Qt.NoBrush)
-        # painter.setPen(QtCore.Qt.red)
+        # painter.setBrush(Qt.NoBrush)
+        # painter.setPen(Qt.red)
         # painter.drawRect(self.boundingRect())
         # painter.drawEllipse(-3, -3, 6, 6)
         # self.label.setPlainText("%s - %s" % (self.scenePos().x(), self.scenePos().y()))
@@ -555,7 +688,7 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
         return label_width
 
     def itemChange(self, change, value):
-        if change == QtGui.QGraphicsItem.ItemPositionHasChanged:
+        if change == QGraphicsItem.ItemPositionHasChanged:
             for edge in self.edgeList:
                 edge.adjust()
             self.graph.item_moved()
@@ -607,27 +740,30 @@ class QNodeGraphicItem(QtGui.QGraphicsItem):
             self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
 
 
-class QNetworkxWidget(QtGui.QGraphicsView):
-    def __init__(self, directed= False, parent=None):
+class QNetworkxWidget(QGraphicsView):
+    def __init__(self, directed=False, parent=None):
         super(QNetworkxWidget, self).__init__(parent)
 
-        self.timerId = 0
+        self.timer_id = 0
+        self.background_color = QColor(0, 0, 0)
+        self.last_position = None
+        self.current_position = None
+        self.panning_mode = False
 
-        self.scene = QtGui.QGraphicsScene(self)
-        self.scene.setItemIndexMethod(QtGui.QGraphicsScene.NoIndex)
+        self.scene = QGraphicsScene(self)
+        self.scene.setItemIndexMethod(QGraphicsScene.NoIndex)
         self.scene.setSceneRect(-400, -400, 800, 800)
         self.setScene(self.scene)
-        self.setCacheMode(QtGui.QGraphicsView.CacheBackground)
-        self.setViewportUpdateMode(QtGui.QGraphicsView.BoundingRectViewportUpdate)
-        self.setRenderHint(QtGui.QPainter.Antialiasing)
-        self.setTransformationAnchor(QtGui.QGraphicsView.AnchorViewCenter)
-        self.setResizeAnchor(QtGui.QGraphicsView.AnchorViewCenter)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff )
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff )
+        self.setCacheMode(QGraphicsView.CacheBackground)
+        self.setViewportUpdateMode(QGraphicsView.BoundingRectViewportUpdate)
+        self.setRenderHint(QPainter.Antialiasing)
+        self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
+        self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
-
 
         self.nodes = {}
         self.edges = {}
@@ -635,6 +771,8 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.is_directed = directed
 
         self._scale_factor = 1.15
+        self.set_panning_mode(False)
+
     #     self.zoom_in_action = QAction("Zoom in", self)
     #     self.zoom_in_action.setShortcut("Ctrl++")
     #     self.zoom_in_action.triggered.connect(self.zoom_in_one_step)
@@ -649,13 +787,27 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
 
+    def set_panning_mode(self, mode=False):
+        self.panning_mode = mode
+        if self.panning_mode:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        else:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+
+    def get_current_nodes_positions(self):
+        position_dict = {}
+        for node_label, item in self.nodes.items():
+            position_dict[node_label] = (item.pos().x(), item.pos().y())
+        return position_dict
+
     def set_scale_factor(self, scale_factor):
         self._scale_factor = scale_factor
 
-
     def item_moved(self):
-        if not self.timerId:
-            self.timerId = self.startTimer(1000 / 25)
+        if not self.timer_id:
+            self.timer_id = self.startTimer(1000 / 25)
 
     def add_node(self, label=None):
         if label is None:
@@ -678,13 +830,13 @@ class QNetworkxWidget(QtGui.QGraphicsView):
             elif isinstance(first_node, QNodeGraphicItem):
                 node1 = first_node
             else:
-                raise Exception("Nodes must be existing labels on the graph or QNodeGRaphicItem")
+                raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
             if isinstance(second_node, basestring):
                 node2 = self.nodes[second_node]
             elif isinstance(second_node, QNodeGraphicItem):
                 node2 = second_node
             else:
-                raise Exception("Nodes must be existing labels on the graph or QNodeGRaphicItem")
+                raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
 
         edge = QEdgeGraphicItem(node1, node2, label, self.is_directed)
         edge.adjust()
@@ -696,13 +848,38 @@ class QNetworkxWidget(QtGui.QGraphicsView):
     def keyPressEvent(self, event):
         key = event.key()
 
-
-        if key == QtCore.Qt.Key_Plus:
+        if key == Qt.Key_Plus:
             self.scale_view(self._scale_factor)
-        elif key == QtCore.Qt.Key_Minus:
+        elif key == Qt.Key_Minus:
             self.scale_view(1 / self._scale_factor)
         else:
             super(QNetworkxWidget, self).keyPressEvent(event)
+
+    def mousePressEvent(self, event):
+        if self.panning_mode:
+            if event.button() == Qt.MidButton or (event.buttons() & Qt.RightButton and event.buttons() & Qt.LeftButton):
+                self.setDragMode(QGraphicsView.ScrollHandDrag)
+                self.last_position = event.pos()
+
+        QGraphicsView.mousePressEvent(self, event)
+
+    def mouseMoveEvent(self, event):
+        if self.panning_mode:
+            if self.dragMode() == QGraphicsView.ScrollHandDrag:
+                self.current_position = event.pos()
+                dx = self.current_position.x() - self.last_position.x()
+                dy = self.current_position.y() - self.last_position.y()
+                self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
+                self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
+                self.last_position = self.current_position
+
+        QGraphicsView.mouseMoveEvent(self, event)
+
+    def mouseReleaseEvent(self, event):
+        if self.panning_mode:
+            self.setDragMode(QGraphicsView.NoDrag)
+
+        QGraphicsView.mouseReleaseEvent(self, event)
 
     def timerEvent(self, event):
         nodes = self.nodes.values()
@@ -716,8 +893,8 @@ class QNetworkxWidget(QtGui.QGraphicsView):
                 items_moved = True
 
         if not items_moved:
-            self.killTimer(self.timerId)
-            self.timerId = 0
+            self.killTimer(self.timer_id)
+            self.timer_id = 0
 
     def wheelEvent(self, event):
         self.scale_view(math.pow(2.0, -event.delta() / 240.0))
@@ -728,31 +905,40 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.resize_scene()
 
     def resize_scene(self):
-        self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
+        if self.panning_mode:
+            rect = self.mapToScene(self.viewport().geometry()).boundingRect()
+            initial_height = rect.height()
+            initial_width = rect.width()
+            rect.setLeft(rect.left() - initial_width)
+            rect.setRight(rect.right() + initial_width)
+            rect.setTop(rect.top() - initial_height)
+            rect.setBottom(rect.bottom() + initial_height)
+            self.scene.setSceneRect(rect)
+        else:
+            self.scene.setSceneRect(self.mapToScene(self.viewport().geometry()).boundingRect())
 
     def drawBackground(self, painter, rect):
         # Shadow.
         scene_rect = self.sceneRect()
-        # rightShadow = QtCore.QRectF(sceneRect.right(), sceneRect.top() + 5, 5,
+        # rightShadow = QRectF(sceneRect.right(), sceneRect.top() + 5, 5,
         #                             sceneRect.height())
-        # bottomShadow = QtCore.QRectF(sceneRect.left() + 5, sceneRect.bottom(),
+        # bottomShadow = QRectF(sceneRect.left() + 5, sceneRect.bottom(),
         #                              sceneRect.width(), 5)
         # if rightShadow.intersects(rect) or rightShadow.contains(rect):
-        #     painter.fillRect(rightShadow, QtCore.Qt.darkGray)
+        #     painter.fillRect(rightShadow, Qt.darkGray)
         # if bottomShadow.intersects(rect) or bottomShadow.contains(rect):
-        #     painter.fillRect(bottomShadow, QtCore.Qt.darkGray)
+        #     painter.fillRect(bottomShadow, Qt.darkGray)
 
         # Fill.
-        gradient = QtGui.QLinearGradient(scene_rect.topLeft(),
-                                         scene_rect.bottomRight())
-        gradient.setColorAt(0, QtCore.Qt.black)
-        gradient.setColorAt(1, QtCore.Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QtGui.QBrush(QtCore.Qt.black))
-        painter.setBrush(QtCore.Qt.NoBrush)
+        gradient = QLinearGradient(scene_rect.topLeft(),
+                                   scene_rect.bottomRight())
+        gradient.setColorAt(0, Qt.black)
+        gradient.setColorAt(1, Qt.darkGray)
+        painter.fillRect(rect.intersect(scene_rect), QBrush(self.background_color))
+        painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
-                              QPen(QtCore.Qt.white), QBrush(QtCore.Qt.SolidPattern))
-
+                              QPen(Qt.white), QBrush(Qt.SolidPattern))
 
     def set_node_size(self, size):
         nodes = self.nodes.values()
@@ -794,7 +980,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         return max_width
 
     def scale_view(self, scale_factor):
-        factor = self.matrix().scale(scale_factor, scale_factor).mapRect(QtCore.QRectF(0, 0, 1, 1)).width()
+        factor = self.matrix().scale(scale_factor, scale_factor).mapRect(QRectF(0, 0, 1, 1)).width()
 
         if factor < 0.07 or factor > 100:
             return
@@ -802,22 +988,7 @@ class QNetworkxWidget(QtGui.QGraphicsView):
         self.scale(scale_factor, scale_factor)
         self.resize_scene()
 
-        # def graph_example(self):
-        #     self.the_graph.add_nodes_from([1, 2, 3, 4])
-        #     self.the_graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
-        #     self.the_graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
-        #
-        #     # X = set(n for n, d in self.the_graph.nodes(data=True) if d['bipartite'] == 0)
-        #     # Y = set(self.the_graph) - X
-        #     #
-        #     # X = sorted(X, reverse=True)
-        #     # Y = sorted(Y, reverse=True)
-        #     #
-        #     # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
-        #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
-        #     self.node_positions = pos=nx.spring_layout(self.the_graph)
-
-    def add_context_menu(self, options, related_classes="graph"):
+    def add_context_menu(self, options, related_classes=["graph"]):
         """
         Add variable context menus actions to the graph elements.
 
@@ -881,7 +1052,6 @@ class QNetworkxController(object):
 
     def set_elements_context_menus(self, options_dict, elements):
         self.graph_widget.add_context_menu(options_dict, elements)
-
 
     def networkx_positions_to_pixels(self, position_dict):
         pixel_positions = {}
@@ -959,7 +1129,7 @@ class QNetworkxWindowExample(QMainWindow):
         self.horizontal_layout = QHBoxLayout()
         self.main_layout.addLayout(self.horizontal_layout)
 
-        self.slider = QSlider(QtCore.Qt.Horizontal)
+        self.slider = QSlider(Qt.Horizontal)
         self.slider.setMaximum(200)
         self.slider.setMinimum(10)
         self.slider.valueChanged.connect(self.graph_widget.set_node_size)
@@ -989,13 +1159,14 @@ class QNetworkxWindowExample(QMainWindow):
             "option 2": (self.network_controller, "print_something")
         }
         self.network_controller.set_elements_context_menus(a, ["edges"])
-        self.create_looped_graph()
+        print self.graph_widget.get_current_nodes_positions()
+        # self.create_looped_graph()
 
     def create_looped_graph(self):
         self.network_controller.delete_graph()
         self.graph_model = nx.DiGraph()
         self.graph_model.add_node("Patata")
-        self.graph_model.add_edge("Patata","Patata")
+        self.graph_model.add_edge("Patata", "Patata")
         self.network_controller.set_graph(self.graph_model)
         self.graph_widget.animate_nodes(self.animation_checkbox.checkState())
         self.graph_widget.set_node_size(200)
@@ -1012,8 +1183,8 @@ class QNetworkxWindowExample(QMainWindow):
 if __name__ == '__main__':
     import sys
 
-    app = QtGui.QApplication(sys.argv)
-    QtCore.qsrand(QtCore.QTime(0, 0, 0).secsTo(QtCore.QTime.currentTime()))
+    app = QApplication(sys.argv)
+    qsrand(QTime(0, 0, 0).secsTo(QTime.currentTime()))
     window = QNetworkxWindowExample()
     window.showMaximized()
 
