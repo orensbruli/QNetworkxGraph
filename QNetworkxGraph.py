@@ -11,7 +11,7 @@
 # TODO: Add methods to attach context menus to the items of the graph
 # TODO: Add _logger to the classes of the library
 # TODO: Make it possible that the nodes have any shape
-# FIX: The circunference of a selected node appears cutted up, down, right and left.
+# FIX: The circumference of a selected node appears cutted up, down, right and left.
 # TODO: Multiple selection and deselection
 # TODO: Create gravity centers for group of nodes
 
@@ -25,18 +25,17 @@
 # Done: Loop edges
 
 
-import math
-
 import logging
+import math
+from random import uniform
+
 import networkx as nx
-import numpy
-from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs
+from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs, pyqtSignal
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
     QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
     QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
-from random import uniform
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -93,6 +92,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.menu = None
         self.is_directed = directed
 
+
     def type(self):
         return QEdgeGraphicItem.Type
 
@@ -115,11 +115,11 @@ class QEdgeGraphicItem(QGraphicsItem):
             return
 
         if self.source != self.dest:
-            sceneLine = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
+            scene_line = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
 
-            sceneLine_center = QPointF((sceneLine.x1() + sceneLine.x2()) / 2, (sceneLine.y1() + sceneLine.y2()) / 2)
+            scene_line_center = QPointF((scene_line.x1() + scene_line.x2()) / 2, (scene_line.y1() + scene_line.y2()) / 2)
 
-            self.setPos(sceneLine_center)
+            self.setPos(scene_line_center)
 
             line = QLineF(self.mapFromItem(self.source, 0, 0),
                           self.mapFromItem(self.dest, 0, 0))
@@ -156,7 +156,7 @@ class QEdgeGraphicItem(QGraphicsItem):
             #                           Qt.RoundCap, Qt.RoundJoin))
             # painter.drawEllipse(arc_center_x-2, arc_center_y-2, 4, 4)
 
-            # calculate the P1 and P2 points where both cicles cut (on arc coordinate)
+            # calculate the P1 and P2 points where both circles cut (on arc coordinate)
             # http://mathworld.wolfram.com/Circle-CircleIntersection.html
             p1_cut_point_x = (math.pow(centers_distance, 2) - math.pow(node_radius, 2) + math.pow(arc_radius,
                                                                                                   2)) / float(
@@ -236,6 +236,7 @@ class QEdgeGraphicItem(QGraphicsItem):
             event.setAccepted(True)
         else:
             self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+            event.setAccepted(False)
 
     def shape(self):
         if self.source == self.dest:
@@ -613,7 +614,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
 
     def advance(self):
-        if self.newPos == self.pos():
+        if self.newPos == self.pos() or self.isSelected():
             return False
 
         self.setPos(self.newPos)
@@ -650,6 +651,11 @@ class QNodeGraphicItem(QGraphicsItem):
             gradient.setColorAt(0, QColor(Qt.black).light(120))
             pen = QPen(Qt.lightGray)
             pen.setWidth(self.border_width * 2)
+        elif option.state & QStyle.State_Selected:
+            gradient.setColorAt(0, Qt.blue)
+            gradient.setColorAt(1, Qt.darkBlue)
+            pen = QPen(QColor(255, 0, 0, 255))
+            pen.setWidth(self.border_width)
         else:
             gradient.setColorAt(0, Qt.blue)
             gradient.setColorAt(1, Qt.darkBlue)
@@ -729,6 +735,13 @@ class QNodeGraphicItem(QGraphicsItem):
 
     def contextMenuEvent(self, event):
         self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
+        selection_path = QPainterPath()
+        selection_path.addPolygon(self.mapToScene(self.boundingRect()))
+        if event.modifiers() & Qt.CTRL:
+            selection_path += self.scene().selectionArea()
+        else:
+            self.scene().clearSelection()
+        self.scene().setSelectionArea(selection_path)
         if self.menu:
             self.menu.exec_(event.screenPos())
             event.setAccepted(True)
@@ -737,18 +750,22 @@ class QNodeGraphicItem(QGraphicsItem):
 
 
 class QNetworkxWidget(QGraphicsView):
+    node_selection_changed = pyqtSignal(list)
+
     def __init__(self, directed=False, parent=None):
         super(QNetworkxWidget, self).__init__(parent)
 
-        self.timerId = 0
-        self.backgroundColor = QColor(0, 0, 0)
-        self.lastPosition = None
+        self.timer_id = 0
+        self.background_color = QColor(0, 0, 0)
+        self.last_position = None
+        self.current_position = None
         self.panning_mode = False
 
         self.scene = QGraphicsScene(self)
         self.scene.setItemIndexMethod(QGraphicsScene.NoIndex)
         self.scene.setSceneRect(-400, -400, 800, 800)
         self.setScene(self.scene)
+        self.scene.selectionChanged.connect(self.on_selection_change)
         self.setCacheMode(QGraphicsView.CacheBackground)
         self.setViewportUpdateMode(QGraphicsView.BoundingRectViewportUpdate)
         self.setRenderHint(QPainter.Antialiasing)
@@ -782,6 +799,18 @@ class QNetworkxWidget(QGraphicsView):
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
 
+    def on_selection_change(self):
+        selected_nodes = self.selected_nodes()
+        self.node_selection_changed.emit(selected_nodes)
+
+    def selected_nodes(self):
+        changed = self.scene.selectedItems()
+        selected_nodes = []
+        for item in changed:
+            if isinstance(item, QNodeGraphicItem):
+                selected_nodes.append(item.label.toPlainText())
+        return selected_nodes
+
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
         if self.panning_mode:
@@ -790,7 +819,6 @@ class QNetworkxWidget(QGraphicsView):
         else:
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-
 
     def get_current_nodes_positions(self):
         position_dict = {}
@@ -802,17 +830,24 @@ class QNetworkxWidget(QGraphicsView):
         self._scale_factor = scale_factor
 
     def item_moved(self):
-        if not self.timerId:
-            self.timerId = self.startTimer(1000 / 25)
+        if not self.timer_id:
+            self.timer_id = self.startTimer(1000 / 25)
 
     def add_node(self, label=None):
         if label is None:
             node_label = "Node %s" % len(self.nodes)
         else:
             node_label = label
-        node = QNodeGraphicItem(self, node_label)
-        self.nodes[node_label] = node
-        self.scene.addItem(node)
+        if isinstance(label, QString):
+            label = unicode(label.toUtf8(), encoding="UTF-8")
+        if label not in self.nodes:
+            node = QNodeGraphicItem(self, node_label)
+            self.nodes[node_label] = node
+            self.scene.addItem(node)
+        else:
+            # TODO: raise exception
+            pass
+        return node
 
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None):
         if node_tuple:
@@ -825,12 +860,16 @@ class QNetworkxWidget(QGraphicsView):
                 node1 = self.nodes[first_node]
             elif isinstance(first_node, QNodeGraphicItem):
                 node1 = first_node
+            elif isinstance(first_node, QString):
+                node1 = self.nodes[unicode(first_node.toUtf8(), encoding="UTF-8")]
             else:
                 raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
             if isinstance(second_node, basestring):
                 node2 = self.nodes[second_node]
             elif isinstance(second_node, QNodeGraphicItem):
                 node2 = second_node
+            elif isinstance(second_node, QString):
+                node2 = self.nodes[unicode(second_node.toUtf8(), encoding="UTF-8")]
             else:
                 raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
 
@@ -855,26 +894,24 @@ class QNetworkxWidget(QGraphicsView):
         if self.panning_mode:
             if event.button() == Qt.MidButton or (event.buttons() & Qt.RightButton and event.buttons() & Qt.LeftButton):
                 self.setDragMode(QGraphicsView.ScrollHandDrag)
-                self.lastPosition = event.pos()
+                self.last_position = event.pos()
 
         QGraphicsView.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
         if self.panning_mode:
             if self.dragMode() == QGraphicsView.ScrollHandDrag:
-                self.currentPosition = event.pos()
-                dx = self.currentPosition.x() - self.lastPosition.x()
-                dy = self.currentPosition.y() - self.lastPosition.y()
+                self.current_position = event.pos()
+                dx = self.current_position.x() - self.last_position.x()
+                dy = self.current_position.y() - self.last_position.y()
                 self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
                 self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
-                self.lastPosition = self.currentPosition
+                self.last_position = self.current_position
 
         QGraphicsView.mouseMoveEvent(self, event)
 
     def mouseReleaseEvent(self, event):
         if self.panning_mode:
-            if event.button() == Qt.LeftButton:
-                self.leftMouseButtonClicked = False
             self.setDragMode(QGraphicsView.NoDrag)
 
         QGraphicsView.mouseReleaseEvent(self, event)
@@ -891,8 +928,8 @@ class QNetworkxWidget(QGraphicsView):
                 items_moved = True
 
         if not items_moved:
-            self.killTimer(self.timerId)
-            self.timerId = 0
+            self.killTimer(self.timer_id)
+            self.timer_id = 0
 
     def wheelEvent(self, event):
         self.scale_view(math.pow(2.0, -event.delta() / 240.0))
@@ -932,7 +969,7 @@ class QNetworkxWidget(QGraphicsView):
                                    scene_rect.bottomRight())
         gradient.setColorAt(0, Qt.black)
         gradient.setColorAt(1, Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QBrush(self.backgroundColor))
+        painter.fillRect(rect.intersect(scene_rect), QBrush(self.background_color))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
@@ -986,21 +1023,6 @@ class QNetworkxWidget(QGraphicsView):
         self.scale(scale_factor, scale_factor)
         self.resize_scene()
 
-        # def graph_example(self):
-        #     self.the_graph.add_nodes_from([1, 2, 3, 4])
-        #     self.the_graph.add_nodes_from(["asdf", 'b', 'c', 'd', 'e'])
-        #     self.the_graph.add_edges_from([(1, 'a'), (2, 'c'), (3, 'd'), (3, 'e'), (4, 'e'), (4, 'd')])
-        #
-        #     # X = set(n for n, d in self.the_graph.nodes(data=True) if d['bipartite'] == 0)
-        #     # Y = set(self.the_graph) - X
-        #     #
-        #     # X = sorted(X, reverse=True)
-        #     # Y = sorted(Y, reverse=True)
-        #     #
-        #     # self.node_positions.update((n, (1, i)) for i, n in enumerate(X))  # put nodes from X at x=1
-        #     # self.node_positions.update((n, (2, i)) for i, n in enumerate(Y))  # put nodes from Y at x=2
-        #     self.node_positions = pos=nx.spring_layout(self.the_graph)
-
     def add_context_menu(self, options, related_classes=["graph"]):
         """
         Add variable context menus actions to the graph elements.
@@ -1033,6 +1055,9 @@ class QNetworkxWidget(QGraphicsView):
             self.scene.removeItem(edge)
         self.nodes.clear()
         self.edges.clear()
+
+    def clear(self):
+        self.delete_graph()
 
 
 class QNetworkxController(object):
@@ -1202,3 +1227,4 @@ if __name__ == '__main__':
     window.showMaximized()
 
     sys.exit(app.exec_())
+
