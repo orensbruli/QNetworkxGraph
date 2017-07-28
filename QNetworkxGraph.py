@@ -851,6 +851,7 @@ class QNetworkxWidget(QGraphicsView):
         else:
             # TODO: raise exception
             pass
+        return node
 
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
