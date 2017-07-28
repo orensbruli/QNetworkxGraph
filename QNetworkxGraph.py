@@ -236,6 +236,7 @@ class QEdgeGraphicItem(QGraphicsItem):
             event.setAccepted(True)
         else:
             self._logger.warning("No QEdgeGraphicsItem defined yet. Use add_context_menu.")
+            event.setAccepted(False)
 
     def shape(self):
         if self.source == self.dest:
@@ -734,6 +735,13 @@ class QNodeGraphicItem(QGraphicsItem):
 
     def contextMenuEvent(self, event):
         self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
+        selection_path = QPainterPath()
+        selection_path.addPolygon(self.mapToScene(self.boundingRect()))
+        if event.modifiers() & Qt.CTRL:
+            selection_path += self.scene().selectionArea()
+        else:
+            self.scene().clearSelection()
+        self.scene().setSelectionArea(selection_path)
         if self.menu:
             self.menu.exec_(event.screenPos())
             event.setAccepted(True)
