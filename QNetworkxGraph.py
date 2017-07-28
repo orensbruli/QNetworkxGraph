@@ -61,7 +61,7 @@ class QEdgeGraphicItem(QGraphicsItem):
 
     Type = QGraphicsItem.UserType + 2
 
-    def __init__(self, source_node, dest_node, label=None, directed=False):
+    def __init__(self, first_node, second_node, label=None, directed=False, label_visible=True):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
         self._logger.setLevel(logging.DEBUG)
         super(QEdgeGraphicItem, self).__init__()
@@ -75,12 +75,12 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         # self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         # self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
-        self.source = source_node
-        self.dest = dest_node
+        self.source = first_node
+        self.dest = second_node
         self.node_size = 10
         if not label:
-            if source_node.label is not None and dest_node.label is not None:
-                label = "%s - %s" % (source_node.label.toPlainText(), dest_node.label.toPlainText())
+            if first_node.label is not None and second_node.label is not None:
+                label = "%s - %s" % (first_node.label.toPlainText(), second_node.label.toPlainText())
             else:
                 label = ''
         self.label = QGraphicsTextItem(label, self)
@@ -91,7 +91,10 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.adjust()
         self.menu = None
         self.is_directed = directed
+        self.set_label_visible(label_visible)
 
+    def set_label_visible(self, boolean):
+        self.label.setVisible(boolean)
 
     def type(self):
         return QEdgeGraphicItem.Type
@@ -117,7 +120,8 @@ class QEdgeGraphicItem(QGraphicsItem):
         if self.source != self.dest:
             scene_line = QLineF(self.source.mapToScene(0, 0), self.dest.mapToScene(0, 0))
 
-            scene_line_center = QPointF((scene_line.x1() + scene_line.x2()) / 2, (scene_line.y1() + scene_line.y2()) / 2)
+            scene_line_center = QPointF((scene_line.x1() + scene_line.x2()) / 2,
+                                        (scene_line.y1() + scene_line.y2()) / 2)
 
             self.setPos(scene_line_center)
 
@@ -839,7 +843,7 @@ class QNetworkxWidget(QGraphicsView):
         else:
             node_label = label
         if isinstance(label, QString):
-            label=unicode(label.toUtf8(), encoding="UTF-8")
+            label = unicode(label.toUtf8(), encoding="UTF-8")
         if label not in self.nodes:
             node = QNodeGraphicItem(self, node_label)
             self.nodes[node_label] = node
@@ -848,7 +852,7 @@ class QNetworkxWidget(QGraphicsView):
             # TODO: raise exception
             pass
 
-    def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None):
+    def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
             node1_str, node2_str = node_tuple
             if node1_str in self.nodes and node2_str in self.nodes:
@@ -872,9 +876,10 @@ class QNetworkxWidget(QGraphicsView):
             else:
                 raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
 
-        edge = QEdgeGraphicItem(node1, node2, label, self.is_directed)
+        edge = QEdgeGraphicItem(first_node=node1, second_node=node2, label=label, directed=self.is_directed,
+                                label_visible=label_visible)
         edge.adjust()
-        if edge:
+        if edge and edge.label.toPlainText() not in self.edges:
             self.edges[edge.label.toPlainText()] = edge
             self.scene.addItem(edge)
             # self.scene.addItem(edge.label)
