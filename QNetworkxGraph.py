@@ -37,6 +37,7 @@ from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsVie
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
 from particles_decor import ParticlesBackgroundDecoration
+from enum import Enum
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -538,6 +539,11 @@ class QEdgeGraphicItem(QGraphicsItem):
         return new_path
 
 
+class NodeShapes(Enum):
+    SQUARE = 1
+    CIRCLE = SQUARE + 1
+
+
 class QNodeGraphicItem(QGraphicsItem):
     Type = QGraphicsItem.UserType + 1
 
@@ -565,6 +571,13 @@ class QNodeGraphicItem(QGraphicsItem):
         self.animate = True
         self.menu = None
         self.setPos(uniform(-10, 10), uniform(-10, 10))
+        self.node_shape = NodeShapes.CIRCLE
+
+    def set_node_shape(self, shape):
+        if shape in NodeShapes:
+            self.node_shape = shape
+        else:
+            raise Exception("Shape must be one of the ones defined on NodeShapes class")
 
     def type(self):
         return QNodeGraphicItem.Type
@@ -633,10 +646,14 @@ class QNodeGraphicItem(QGraphicsItem):
                       height)
 
     def shape(self):
+
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
         path = QPainterPath()
-        path.addEllipse(x_coord, y_coord, width, height)
+        if self.node_shape == NodeShapes.CIRCLE:
+            path.addEllipse(x_coord, y_coord, width, height)
+        else:
+            path.addRect(x_coord, y_coord, width, height)
         return path
 
     def paint(self, painter, option, widget):
@@ -674,7 +691,10 @@ class QNodeGraphicItem(QGraphicsItem):
 
         painter.setPen(pen)
         # Draw the circle
-        painter.drawEllipse(x_coord, y_coord, width, height)
+        if self.node_shape == NodeShapes.CIRCLE:
+            painter.drawEllipse(x_coord, y_coord, width, height)
+        else:
+            painter.drawRect(x_coord, y_coord, width, height)
         # painter.setPen(Qt.white)
         # painter.drawText(QRect(x_coord,y_coord, width, height), Qt.AlignCenter, str(self.label))
         painter.restore()
@@ -1076,6 +1096,10 @@ class QNetworkxWidget(QGraphicsView):
 
     def clear(self):
         self.delete_graph()
+
+    def set_nodes_shape(self, shape):
+        for node in self.nodes.values():
+            node.set_node_shape(shape)
 
 
 class QNetworkxController(object):
