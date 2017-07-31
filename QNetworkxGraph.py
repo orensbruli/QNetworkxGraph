@@ -36,6 +36,7 @@ from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsVie
     QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
+from particles_decor import ParticlesBackgroundDecoration
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -91,6 +92,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.adjust()
         self.menu = None
         self.is_directed = directed
+        self.setZValue(11)
 
     def type(self):
         return QEdgeGraphicItem.Type
@@ -546,7 +548,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
-        self.setZValue(1)
+        self.setZValue(10)
         self.size = 40
         self.border_width = 4
         self.label = QGraphicsTextItem(str(label))
@@ -762,6 +764,8 @@ class QNetworkxWidget(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
+        self.particle_background = None
+
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
 
@@ -786,6 +790,13 @@ class QNetworkxWidget(QGraphicsView):
     #
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
+
+    def set_particle_background(self):
+        ParticlesBackgroundDecoration(self.scene)
+        self.particle_background.generate_particles(200)
+        self.particle_background.reduce_speed(0.3)
+        color = QColor(255, 255, 255, 40)
+        self.particle_background.set_color(color)
 
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
@@ -903,6 +914,8 @@ class QNetworkxWidget(QGraphicsView):
         QGraphicsView.resizeEvent(self, event)
         # self.centerOn(self.mapToScene(0, 0))
         self.resize_scene()
+        if self.particle_background:
+            self.particle_background.recalculate_new_pos()
 
     def resize_scene(self):
         if self.panning_mode:
