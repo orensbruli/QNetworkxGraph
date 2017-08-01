@@ -36,6 +36,8 @@ from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsVie
     QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
+from particles_decor import ParticlesBackgroundDecoration
+from enum import Enum
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -91,6 +93,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.adjust()
         self.menu = None
         self.is_directed = directed
+        self.setZValue(11)
         self.set_label_visible(label_visible)
 
     def set_label_visible(self, boolean):
@@ -536,6 +539,11 @@ class QEdgeGraphicItem(QGraphicsItem):
         return new_path
 
 
+class NodeShapes(Enum):
+    SQUARE = 1
+    CIRCLE = SQUARE + 1
+
+
 class QNodeGraphicItem(QGraphicsItem):
     Type = QGraphicsItem.UserType + 1
 
@@ -552,7 +560,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
-        self.setZValue(1)
+        self.setZValue(10)
         self.size = 40
         self.border_width = 4
         self.label = QGraphicsTextItem(str(label))
@@ -563,6 +571,13 @@ class QNodeGraphicItem(QGraphicsItem):
         self.animate = True
         self.menu = None
         self.setPos(uniform(-10, 10), uniform(-10, 10))
+        self.node_shape = NodeShapes.CIRCLE
+
+    def set_node_shape(self, shape):
+        if shape in NodeShapes:
+            self.node_shape = shape
+        else:
+            raise Exception("Shape must be one of the ones defined on NodeShapes class")
 
     def type(self):
         return QNodeGraphicItem.Type
@@ -631,10 +646,14 @@ class QNodeGraphicItem(QGraphicsItem):
                       height)
 
     def shape(self):
+
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
         path = QPainterPath()
-        path.addEllipse(x_coord, y_coord, width, height)
+        if self.node_shape == NodeShapes.CIRCLE:
+            path.addEllipse(x_coord, y_coord, width, height)
+        else:
+            path.addRect(x_coord, y_coord, width, height)
         return path
 
     def paint(self, painter, option, widget):
@@ -672,7 +691,10 @@ class QNodeGraphicItem(QGraphicsItem):
 
         painter.setPen(pen)
         # Draw the circle
-        painter.drawEllipse(x_coord, y_coord, width, height)
+        if self.node_shape == NodeShapes.CIRCLE:
+            painter.drawEllipse(x_coord, y_coord, width, height)
+        else:
+            painter.drawRect(x_coord, y_coord, width, height)
         # painter.setPen(Qt.white)
         # painter.drawText(QRect(x_coord,y_coord, width, height), Qt.AlignCenter, str(self.label))
         painter.restore()
@@ -778,6 +800,8 @@ class QNetworkxWidget(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
+        self.particle_background = None
+
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
 
@@ -802,6 +826,13 @@ class QNetworkxWidget(QGraphicsView):
     #
     # def zoom_out_one_step(self):
     #     self.scale(1/self._scale_factor, 1/self._scale_factor)
+
+    def set_particle_background(self):
+        ParticlesBackgroundDecoration(self.scene)
+        self.particle_background.generate_particles(200)
+        self.particle_background.reduce_speed(0.3)
+        color = QColor(255, 255, 255, 40)
+        self.particle_background.set_color(color)
 
     def on_selection_change(self):
         selected_nodes = self.selected_nodes()
@@ -851,7 +882,9 @@ class QNetworkxWidget(QGraphicsView):
         else:
             # TODO: raise exception
             pass
-        return node
+
+    def get_node(self, label):
+        return self.nodes[label]
 
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
@@ -943,6 +976,8 @@ class QNetworkxWidget(QGraphicsView):
         QGraphicsView.resizeEvent(self, event)
         # self.centerOn(self.mapToScene(0, 0))
         self.resize_scene()
+        if self.particle_background:
+            self.particle_background.recalculate_new_pos()
 
     def resize_scene(self):
         if self.panning_mode:
@@ -1063,6 +1098,10 @@ class QNetworkxWidget(QGraphicsView):
 
     def clear(self):
         self.delete_graph()
+
+    def set_nodes_shape(self, shape):
+        for node in self.nodes.values():
+            node.set_node_shape(shape)
 
 
 class QNetworkxController(object):
