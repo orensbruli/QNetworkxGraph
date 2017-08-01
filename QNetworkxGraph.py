@@ -56,6 +56,8 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 logger.info('Created main logger')
 
+from QNetworkxConfig import QNetworkxConfig, QNetworkxConfig_default
+graph_config= QNetworkxConfig(QNetworkxConfig_default)
 
 class QEdgeGraphicItem(QGraphicsItem):
     Pi = math.pi
@@ -95,6 +97,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.is_directed = directed
         self.setZValue(11)
         self.set_label_visible(label_visible)
+        self.edge_config = graph_config.EdgeConfig
 
     def set_label_visible(self, boolean):
         self.label.setVisible(boolean)
@@ -262,7 +265,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         # painter.scale(-1,1)
         # painter.rotate(180)
 
-        painter.setPen(QPen(Qt.white, 1, Qt.SolidLine,
+        painter.setPen(QPen(self.edge_config.EdgeColors.Self.LineColor, 1, Qt.SolidLine,
                             Qt.RoundCap, Qt.RoundJoin))
         # Debug visual information
         # painter.drawEllipse(p1, 4, 4)
@@ -327,8 +330,8 @@ class QEdgeGraphicItem(QGraphicsItem):
             math.cos(
                 p2_angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
-
-        painter.setBrush(Qt.white)
+        painter.setPen(QPen(self.edge_config.EdgeColors.Self.ArrowEdgeColor))
+        painter.setBrush(QBrush(self.edge_config.EdgeColors.Self.ArrowFillColor))
         if not self.is_directed:
             painter.drawPolygon(QPolygonF([self.source_point, source_arrow_p1, source_arrow_p2]))
         painter.drawPolygon(QPolygonF([self.dest_point, dest_arrow_p1, dest_arrow_p2]))
@@ -350,7 +353,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         if line.length() == 0.0:
             return
 
-        painter.setPen(QPen(Qt.white, 1, Qt.SolidLine,
+        painter.setPen(QPen(self.edge_config.EdgeColors.Default.LineColor, 1, Qt.SolidLine,
                             Qt.RoundCap, Qt.RoundJoin))
         painter.drawLine(line)
 
@@ -391,7 +394,8 @@ class QEdgeGraphicItem(QGraphicsItem):
                 angle - QEdgeGraphicItem.Pi + QEdgeGraphicItem.Pi / 3
             ) * self.arrowSize)
 
-        painter.setBrush(Qt.white)
+        painter.setPen(QPen(self.edge_config.EdgeColors.Default.ArrowEdgeColor))
+        painter.setBrush(QBrush(self.edge_config.EdgeColors.Default.ArrowFillColor))
         if not self.is_directed:
             painter.drawPolygon(QPolygonF([line.p1(), source_arrow_p1, source_arrow_p2]))
         painter.drawPolygon(QPolygonF([line.p2(), dest_arrow_p1, dest_arrow_p2]))
@@ -571,7 +575,8 @@ class QNodeGraphicItem(QGraphicsItem):
         self.animate = True
         self.menu = None
         self.setPos(uniform(-10, 10), uniform(-10, 10))
-        self.node_shape = NodeShapes.CIRCLE
+        self.node_shape = NodeShapes.SQUARE
+        self.node_config = graph_config.NodeConfig
 
     def set_node_shape(self, shape):
         if shape in NodeShapes:
@@ -668,25 +673,20 @@ class QNodeGraphicItem(QGraphicsItem):
         # Gradient depends on the image selected or not
         gradient = QRadialGradient(-3, -3, 10)
         if option.state & QStyle.State_Sunken:
-            gradient.setCenter(3, 3)
-            gradient.setFocalPoint(3, 3)
-            gradient.setColorAt(1, QColor(Qt.lightGray).light(120))
-            gradient.setColorAt(0, QColor(Qt.black).light(120))
-            pen = QPen(Qt.lightGray)
-            pen.setWidth(self.border_width * 2)
+            pen = QPen(self.node_config.NodeColors.Sunken.Edge.PenColor)
+            pen.setWidth(self.border_width * self.node_config.NodeColors.Sunken.Edge.PenWidth)
+            brush = QBrush(self.node_config.NodeColors.Sunken.Fill)
         elif option.state & QStyle.State_Selected:
-            gradient.setColorAt(0, Qt.blue)
-            gradient.setColorAt(1, Qt.darkBlue)
-            pen = QPen(QColor(255, 0, 0, 255))
-            pen.setWidth(self.border_width)
+            pen = QPen(self.node_config.NodeColors.Selected.Edge.PenColor)
+            pen.setWidth(self.border_width * self.node_config.NodeColors.Selected.Edge.PenWidth)
+            brush = QBrush(self.node_config.NodeColors.Selected.Fill)
         else:
-            gradient.setColorAt(0, Qt.blue)
-            gradient.setColorAt(1, Qt.darkBlue)
-            pen = QPen(QColor(200, 0, 100, 127))
-            pen.setWidth(self.border_width)
+            pen = QPen(self.node_config.NodeColors.Default.Edge.PenColor)
+            pen.setWidth(self.border_width * self.node_config.NodeColors.Default.Edge.PenWidth)
+            brush = QBrush(self.node_config.NodeColors.Default.Fill)
 
         # Fill with gradient
-        painter.setBrush(QBrush(QColor(100, 0, 200, 127)))
+        painter.setBrush(brush)
         # Set the outline pen color
 
         painter.setPen(pen)
@@ -884,7 +884,10 @@ class QNetworkxWidget(QGraphicsView):
             pass
 
     def get_node(self, label):
-        return self.nodes[label]
+        if label in self.nodes:
+            return self.nodes[label]
+        else:
+            return None
 
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
