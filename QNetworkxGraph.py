@@ -572,7 +572,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.label.setDefaultTextColor(Qt.white)
         rect = self.label.boundingRect()
         self.label.setPos(-rect.width() / 2, -rect.height() / 2)
-        self.animate = True
+        self.animate = False
         self.menu = None
         self.setPos(uniform(-10, 10), uniform(-10, 10))
         self.node_shape = NodeShapes.SQUARE
@@ -868,7 +868,7 @@ class QNetworkxWidget(QGraphicsView):
         if not self.timer_id:
             self.timer_id = self.startTimer(1000 / 25)
 
-    def add_node(self, label=None,  position= None):
+    def add_node(self, label=None, position=None):
         if label is None:
             node_label = "Node %s" % len(self.nodes)
         else:
