@@ -868,7 +868,7 @@ class QNetworkxWidget(QGraphicsView):
         if not self.timer_id:
             self.timer_id = self.startTimer(1000 / 25)
 
-    def add_node(self, label=None):
+    def add_node(self, label=None,  position= None):
         if label is None:
             node_label = "Node %s" % len(self.nodes)
         else:
@@ -879,6 +879,8 @@ class QNetworkxWidget(QGraphicsView):
             node = QNodeGraphicItem(self, node_label)
             self.nodes[node_label] = node
             self.scene.addItem(node)
+            if position and isinstance(position, tuple):
+                node.setPos(QPointF(position[0], position[1]))
         else:
             # TODO: raise exception
             pass
