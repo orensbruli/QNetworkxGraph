@@ -1107,6 +1107,23 @@ class QNetworkxWidget(QGraphicsView):
         for label, data in self.nx_graph.nodes(data=True):
             data['item'].set_node_shape(shape)
 
+    def networkx_positions_to_pixels(self, position_dict):
+        pixel_positions = {}
+        minimum = min(map(min, zip(*position_dict.values())))
+        maximum = max(map(max, zip(*position_dict.values())))
+        for node, pos in position_dict.items():
+            s_r = self.scene.sceneRect()
+            if minimum != maximum:
+                m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
+                pixel_positions[node] = (m(pos[0]), m(pos[1]))
+            else:
+                pixel_positions[node] = (s_r.center().x(), s_r.center().y())
+        return pixel_positions
+
+
+#############################################################
+# Classes for testing and checking the behavior of the graph#
+#############################################################
 
 class QNetworkxController(object):
     def __init__(self):
@@ -1133,24 +1150,11 @@ class QNetworkxController(object):
         if not initial_pos:
             initial_pos = nx.circular_layout(self.graph)
 
-        initial_pos = self.networkx_positions_to_pixels(initial_pos)
+        initial_pos = self.graph_widget.networkx_positions_to_pixels(initial_pos)
         self.graph_widget.set_node_positions(initial_pos)
 
     def set_elements_context_menus(self, options_dict, elements):
         self.graph_widget.add_context_menu(options_dict, elements)
-
-    def networkx_positions_to_pixels(self, position_dict):
-        pixel_positions = {}
-        minimum = min(map(min, zip(*position_dict.values())))
-        maximum = max(map(max, zip(*position_dict.values())))
-        for node, pos in position_dict.items():
-            s_r = self.graph_widget.scene.sceneRect()
-            if minimum != maximum:
-                m = interp1d([minimum, maximum], [s_r.y(), s_r.y() + s_r.height()])
-                pixel_positions[node] = (m(pos[0]), m(pos[1]))
-            else:
-                pixel_positions[node] = (s_r.center().x(), s_r.center().y())
-        return pixel_positions
 
     def get_widget(self):
         return self.graph_widget
