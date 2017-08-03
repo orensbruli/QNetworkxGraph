@@ -805,8 +805,7 @@ class QNetworkxWidget(QGraphicsView):
         self.setMinimumSize(400, 400)
         self.setWindowTitle("QNetworkXWidget")
 
-        self.nodes = {}
-        self.edges = {}
+        self.nx_graph = nx.Graph()
         # self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.is_directed = directed
 
@@ -857,8 +856,8 @@ class QNetworkxWidget(QGraphicsView):
 
     def get_current_nodes_positions(self):
         position_dict = {}
-        for node_label, item in self.nodes.items():
-            position_dict[node_label] = (item.pos().x(), item.pos().y())
+        for node_label, data in self.nx_graph.nodes(data=True):
+            position_dict[node_label] = (data['item'].pos().x(), data['item'].pos().y())
         return position_dict
 
     def set_scale_factor(self, scale_factor):
@@ -870,14 +869,14 @@ class QNetworkxWidget(QGraphicsView):
 
     def add_node(self, label=None, position=None):
         if label is None:
-            node_label = "Node %s" % len(self.nodes)
+            node_label = "Node %s" % len(self.nx_graph.nodes())
         else:
             node_label = label
         if isinstance(label, QString):
             label = unicode(label.toUtf8(), encoding="UTF-8")
-        if label not in self.nodes:
+        if label not in self.nx_graph.nodes():
             node = QNodeGraphicItem(self, node_label)
-            self.nodes[node_label] = node
+            self.nx_graph.add_node(node_label, item=node)
             self.scene.addItem(node)
             if position and isinstance(position, tuple):
                 node.setPos(QPointF(position[0], position[1]))
@@ -886,40 +885,46 @@ class QNetworkxWidget(QGraphicsView):
             pass
 
     def get_node(self, label):
-        if label in self.nodes:
-            return self.nodes[label]
+        if label in self.nx_graph.nodes():
+            return self.nx_graph.node[label]
         else:
             return None
 
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
-            node1_str, node2_str = node_tuple
-            if node1_str in self.nodes and node2_str in self.nodes:
-                node1 = self.nodes[node1_str]
-                node2 = self.nodes[node2_str]
+            node1_label, node2_label = node_tuple
+            if node1_label in self.nx_graph.nodes() and node2_label in self.nx_graph.nodes():
+                node1 = self.nx_graph.node[node1_label]['item']
+                node2 = self.nx_graph.node[node2_label]['item']
         elif first_node and second_node:
-            if isinstance(first_node, basestring):
-                node1 = self.nodes[first_node]
+            if isinstance(first_node, basestring) and first_node in self.nx_graph.nodes():
+                node1_label = first_node
+                node1 = self.nx_graph.node[first_node]['item']
             elif isinstance(first_node, QNodeGraphicItem):
                 node1 = first_node
+                node1_label = unicode(node1.label.toPlainText().toUtf8(), encoding="UTF-8")
             elif isinstance(first_node, QString):
-                node1 = self.nodes[unicode(first_node.toUtf8(), encoding="UTF-8")]
+                node1_label = unicode(first_node.toUtf8(), encoding="UTF-8")
+                node1 = self.nx_graph.node[node1_label]['item']
             else:
                 raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
             if isinstance(second_node, basestring):
-                node2 = self.nodes[second_node]
+                node2_label = second_node
+                node2 = self.nx_graph.node[second_node]['item']
             elif isinstance(second_node, QNodeGraphicItem):
                 node2 = second_node
+                node2_label = unicode(node2.label.toPlainText().toUtf8(), encoding="UTF-8")
             elif isinstance(second_node, QString):
-                node2 = self.nodes[unicode(second_node.toUtf8(), encoding="UTF-8")]
+                node2_label = unicode(second_node.toUtf8(), encoding="UTF-8")
+                node2 = self.nx_graph.node[node2_label]['item']
             else:
                 raise Exception("Nodes must be existing labels on the graph or QNodeGraphicItem")
 
         edge = QEdgeGraphicItem(first_node=node1, second_node=node2, label=label, directed=self.is_directed,
                                 label_visible=label_visible)
         edge.adjust()
-        if edge and edge.label.toPlainText() not in self.edges:
-            self.edges[edge.label.toPlainText()] = edge
+        if edge and edge.label.toPlainText() not in self.nx_graph.edges():
+            self.nx_graph.add_edge(node1_label, node2_label, item = edge)
             self.scene.addItem(edge)
             # self.scene.addItem(edge.label)
 
@@ -960,14 +965,11 @@ class QNetworkxWidget(QGraphicsView):
         QGraphicsView.mouseReleaseEvent(self, event)
 
     def timerEvent(self, event):
-        nodes = self.nodes.values()
-
-        for node in nodes:
-            node.calculate_forces()
 
         items_moved = False
-        for node in nodes:
-            if node.advance():
+        for label, data in self.nx_graph.nodes(data=True):
+            data['item'].calculate_forces()
+            if data['item'].advance():
                 items_moved = True
 
         if not items_moved:
@@ -1021,19 +1023,17 @@ class QNetworkxWidget(QGraphicsView):
                               QPen(Qt.white), QBrush(Qt.SolidPattern))
 
     def set_node_size(self, size):
-        nodes = self.nodes.values()
-        edges = self.edges.values()
-        for node in nodes:
-            node.set_size(size)
-        for edge in edges:
-            edge.adjust()
+        for label, data in self.nx_graph.nodes(data=True):
+            data['item'].set_size(size)
+        for label1, label2, data in self.nx_graph.edges(data=True):
+            data['item'].adjust()
 
     def animate_nodes(self, animate):
-        for node in self.nodes.values():
-            node.animate_node(animate)
+        for label, data in self.nx_graph.nodes(data=True):
+            data['item'].animate_node(animate)
             if animate:
-                node.calculate_forces()
-                node.advance()
+                data['item'].calculate_forces()
+                data['item'].advance()
 
     def stop_animation(self):
         self.animate_nodes(False)
@@ -1043,8 +1043,8 @@ class QNetworkxWidget(QGraphicsView):
 
     def set_node_positions(self, position_dict):
         for node_str, position in position_dict.items():
-            if node_str in self.nodes:
-                node = self.nodes[node_str]
+            if node_str in self.nx_graph.nodes():
+                node = self.nx_graph.node[node_str]['item']
                 node.setPos(position[0], position[1])
                 node.update()
                 for edge in node.edges():
@@ -1053,8 +1053,8 @@ class QNetworkxWidget(QGraphicsView):
 
     def resize_nodes_to_minimum_label_width(self):
         node_label_width_list = []
-        for node in self.nodes.values():
-            node_label_width_list.append(node.node_label_width())
+        for label, data in self.nx_graph.nodes(data=True):
+            node_label_width_list.append(data['item'].node_label_width())
         max_width = max(node_label_width_list)
         self.set_node_size(max_width)
         return max_width
@@ -1081,11 +1081,11 @@ class QNetworkxWidget(QGraphicsView):
             List of elements to add the menu actions ["nodes", "edges", "graph"]
         """
         if "nodes" in related_classes:
-            for node in self.nodes.values():
-                node.add_context_menu(options)
+            for label, data in self.nx_graph.nodes(data=True):
+                data['item'].add_context_menu(options)
         if "edges" in related_classes:
-            for edge in self.edges.values():
-                edge.add_context_menu(options)
+            for label1, label2, data in self.nx_graph.edges(data=True):
+                data['item'].add_context_menu(options)
         if "graph" in related_classes:
             for option_string, callback in options.items():
                 instance, method = callback
@@ -1094,19 +1094,18 @@ class QNetworkxWidget(QGraphicsView):
                 self.addAction(action1)
 
     def delete_graph(self):
-        for node in self.nodes.values():
-            self.scene.removeItem(node)
-        for edge in self.edges.values():
-            self.scene.removeItem(edge)
-        self.nodes.clear()
-        self.edges.clear()
+        for label, data in self.nx_graph.nodes(data=True):
+            self.scene.removeItem(data['item'])
+        for label, data in self.nx_graph.edges(data=True):
+            self.scene.removeItem(data['item'])
+        self.nx_graph.clear()
 
     def clear(self):
         self.delete_graph()
 
     def set_nodes_shape(self, shape):
-        for node in self.nodes.values():
-            node.set_node_shape(shape)
+        for label, data in self.nx_graph.nodes(data=True):
+            data['item'].set_node_shape(shape)
 
 
 class QNetworkxController(object):
