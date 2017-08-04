@@ -30,6 +30,7 @@ import math
 from random import uniform
 
 import networkx as nx
+import networkx.drawing.layout as ly
 from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs, pyqtSignal
 from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
     QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
@@ -817,6 +818,30 @@ class QNetworkxWidget(QGraphicsView):
         self.menu.addSeparator()
         self.menu.addAction(action1)
 
+        self.menu = QMenu()
+        action1 = QAction("Panning mode", self)
+        action1.triggered.connect(self.set_panning_mode)
+        action1.setCheckable(True)
+        self.menu.addSeparator()
+        self.menu.addAction(action1)
+
+
+    def contextMenuEvent(self, event):
+        self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
+        selection_path = QPainterPath()
+        selection_path.addPolygon(self.mapToScene(self.boundingRect()))
+        if event.modifiers() & Qt.CTRL:
+            selection_path += self.scene().selectionArea()
+        else:
+            self.scene().clearSelection()
+        self.scene().setSelectionArea(selection_path)
+        if self.menu:
+            self.menu.exec_(event.screenPos())
+            event.setAccepted(True)
+        else:
+            self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
+
+
     #     self.zoom_in_action = QAction("Zoom in", self)
     #     self.zoom_in_action.setShortcut("Ctrl++")
     #     self.zoom_in_action.triggered.connect(self.zoom_in_one_step)
@@ -853,11 +878,12 @@ class QNetworkxWidget(QGraphicsView):
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
         if self.panning_mode:
-            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        else:
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        else:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
 
     def get_current_nodes_positions(self):
         position_dict = {}
@@ -1096,7 +1122,7 @@ class QNetworkxWidget(QGraphicsView):
                 instance, method = callback
                 action1 = QAction(option_string, self)
                 action1.triggered.connect(getattr(instance, method))
-                self.addAction(action1)
+                self.menu.addAction(action1)
 
     def delete_graph(self):
         for label, data in self.nx_graph.nodes(data=True):
@@ -1111,10 +1137,10 @@ class QNetworkxWidget(QGraphicsView):
     def contextMenuEvent(self, event):
         # self._logger.debug("ContextMenuEvent received on graph")
         if self.menu:
-            self.menu.exec_(event.scenePos())
+            self.menu.exec_(event.globalPos())
             event.setAccepted(True)
         else:
-            self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
+            self._logger.warning("No menu defined yet for QNetworkxWidget. Use add_context_menu.")
 
     def set_nodes_shape(self, shape):
         for label, data in self.nx_graph.nodes(data=True):
