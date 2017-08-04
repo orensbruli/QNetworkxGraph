@@ -36,7 +36,7 @@ from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsVie
     QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
     QGraphicsScene, QPainter
 from scipy.interpolate import interp1d
-from particles_decor import ParticlesBackgroundDecoration
+from ParticlesBackgroundDecoration import ParticlesBackgroundDecoration
 from enum import Enum
 
 logger = logging.getLogger()
