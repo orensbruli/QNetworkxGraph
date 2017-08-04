@@ -1096,7 +1096,7 @@ class QNetworkxWidget(QGraphicsView):
     def delete_graph(self):
         for label, data in self.nx_graph.nodes(data=True):
             self.scene.removeItem(data['item'])
-        for label, data in self.nx_graph.edges(data=True):
+        for label1, label2, data in self.nx_graph.edges(data=True):
             self.scene.removeItem(data['item'])
         self.nx_graph.clear()
 
