@@ -89,7 +89,7 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.source.add_edge(self)
         self.dest.add_edge(self)
         self.adjust()
-        self.menu = None
+        self.menu = QMenu()
         self.is_directed = directed
         self.set_label_visible(label_visible)
 
@@ -226,7 +226,6 @@ class QEdgeGraphicItem(QGraphicsItem):
             The values of the dict are tuples like (object, method).
         """
         self._logger.debug("Adding custom context menu to edge %s" % str(self.label.toPlainText()))
-        self.menu = QMenu()
         for option_string, callback in options.items():
             instance, method = callback
             action = QAction(option_string, self.menu)
@@ -788,6 +787,12 @@ class QNetworkxWidget(QGraphicsView):
 
         self._scale_factor = 1.15
         self.set_panning_mode(False)
+        self.menu = QMenu()
+        action1 = QAction("Panning mode", self)
+        action1.triggered.connect(self.set_panning_mode)
+        action1.setCheckable(True)
+        self.menu.addSeparator()
+        self.menu.addAction(action1)
 
     #     self.zoom_in_action = QAction("Zoom in", self)
     #     self.zoom_in_action.setShortcut("Ctrl++")
@@ -1063,6 +1068,14 @@ class QNetworkxWidget(QGraphicsView):
     def clear(self):
         self.delete_graph()
 
+    def contextMenuEvent(self, event):
+        # self._logger.debug("ContextMenuEvent received on graph")
+        if self.menu:
+            self.menu.exec_(event.scenePos())
+            event.setAccepted(True)
+        else:
+            self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
+
 
 class QNetworkxController(object):
     def __init__(self):
@@ -1189,7 +1202,6 @@ class QNetworkxWindowExample(QMainWindow):
         self.slider.setValue(current_width)
 
         self.layouts_combo = QComboBox()
-        import networkx.drawing.layout as ly
         for layout_method in dir(ly):
             if "_layout" in layout_method and callable(getattr(ly, layout_method)) and layout_method[0] != '_':
                 self.layouts_combo.addItem(layout_method)
@@ -1215,7 +1227,6 @@ class QNetworkxWindowExample(QMainWindow):
 
     def on_change_layout(self, index):
         item = self.layouts_combo.itemText(index)
-        import networkx.drawing.layout as ly
         layout_method = getattr(ly, str(item))
         pos = layout_method(self.graph_model)
         pos = self.network_controller.networkx_positions_to_pixels(pos)
