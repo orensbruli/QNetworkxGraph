@@ -815,8 +815,8 @@ class QNetworkxWidget(QGraphicsView):
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
-        self.menu.addSeparator()
         self.menu.addAction(action1)
+        self.menu.addSeparator()
 
         self.menu = QMenu()
         action1 = QAction("Panning mode", self)
