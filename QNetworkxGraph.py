@@ -33,9 +33,9 @@ import networkx as nx
 import networkx.drawing.layout as ly
 from PyQt4.QtCore import QLineF, QPointF, QRectF, QSizeF, QString, QTime, Qt, pyqtSignal, qAbs, qsrand
 from PyQt4.QtGui import QAction, QApplication, QBrush, QCheckBox, QColor, QComboBox, QFont, QFontMetrics, QGraphicsItem, \
-    QGraphicsScene, QGraphicsTextItem, QGraphicsView, QHBoxLayout, QLinearGradient, QMainWindow, QMenu, QPainter, \
-    QPainterPath, QPainterPathStroker, QPen, QPolygonF, QRadialGradient, QSlider, QStyle, QTransform, QVBoxLayout, \
-    QWidget
+    QGraphicsScene, QGraphicsTextItem, QGraphicsView, QHBoxLayout, QInputDialog, QLineEdit, QLinearGradient, \
+    QMainWindow, QMenu, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QRadialGradient, QSlider, QStyle, \
+    QTransform, QVBoxLayout, QWidget
 from enum import Enum
 from scipy.interpolate import interp1d
 
@@ -815,12 +815,32 @@ class QNetworkxWidget(QGraphicsView):
 
         self.setDragMode(QGraphicsView.RubberBandDrag)
 
+        self.node_groups = {}
+
         self.menu = QMenu()
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
+        self.node_groups_menu = self.menu.addMenu("Add to group...")
+        self.new_group_action = QAction("Add new group...", self)
+        self.new_group_action.triggered.connect(self.add_new_node_group)
+        self.node_groups_menu.addAction(self.new_group_action)
+        self.node_groups_menu.addSeparator()
         self.menu.addAction(action1)
         self.menu.addSeparator()
+
+    def add_new_node_group(self, node_group_name=None):
+        if not node_group_name:
+            text, result = QInputDialog.getText(self, u"New node group", u"Node group name:", QLineEdit.Normal, "...")
+            if (result and not text.isEmpty()):
+                node_group_name = unicode(text.toUtf8(), encoding="UTF-8")
+            else:
+                return
+        nodes = self.selected_nodes()
+        self.node_groups[node_group_name] = nodes
+        self.node_groups_menu.addAction(node_group_name)
+        print "Created new group %s with nodes %s" % (node_group_name, nodes)
+
 
     def contextMenuEvent(self, event):
         self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
@@ -868,8 +888,11 @@ class QNetworkxWidget(QGraphicsView):
         selected_nodes = []
         for item in changed:
             if isinstance(item, QNodeGraphicItem):
-                selected_nodes.append(item.label.toPlainText())
+                selected_nodes.append(unicode(item.label.toPlainText().toUtf8(), encoding="UTF-8"))
         return selected_nodes
+
+    def get_selected_nodes(self):
+        return self.selected_nodes()
 
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
