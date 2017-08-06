@@ -31,14 +31,15 @@ from random import uniform
 
 import networkx as nx
 import networkx.drawing.layout as ly
-from PyQt4.QtCore import QString, QPointF, Qt, QRectF, qsrand, QTime, QLineF, QSizeF, qAbs, pyqtSignal
-from PyQt4.QtGui import QMainWindow, QWidget, QVBoxLayout, QSlider, QGraphicsView, QPen, QBrush, QHBoxLayout, \
-    QCheckBox, QFont, QFontMetrics, QComboBox, QGraphicsTextItem, QMenu, QAction, QPainterPath, QPainterPathStroker, \
-    QTransform, QGraphicsItem, QApplication, QLinearGradient, QPolygonF, QRadialGradient, QStyle, QColor, \
-    QGraphicsScene, QPainter
-from scipy.interpolate import interp1d
-from ParticlesBackgroundDecoration import ParticlesBackgroundDecoration
+from PyQt4.QtCore import QLineF, QPointF, QRectF, QSizeF, QString, QTime, Qt, pyqtSignal, qAbs, qsrand
+from PyQt4.QtGui import QAction, QApplication, QBrush, QCheckBox, QColor, QComboBox, QFont, QFontMetrics, QGraphicsItem, \
+    QGraphicsScene, QGraphicsTextItem, QGraphicsView, QHBoxLayout, QLinearGradient, QMainWindow, QMenu, QPainter, \
+    QPainterPath, QPainterPathStroker, QPen, QPolygonF, QRadialGradient, QSlider, QStyle, QTransform, QVBoxLayout, \
+    QWidget
 from enum import Enum
+from scipy.interpolate import interp1d
+
+from ParticlesBackgroundDecoration import ParticlesBackgroundDecoration
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -812,13 +813,14 @@ class QNetworkxWidget(QGraphicsView):
         self._scale_factor = 1.15
         self.set_panning_mode(False)
 
+        self.setDragMode(QGraphicsView.RubberBandDrag)
+
         self.menu = QMenu()
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
         self.menu.addAction(action1)
         self.menu.addSeparator()
-
 
     def contextMenuEvent(self, event):
         self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
@@ -1297,7 +1299,7 @@ class QNetworkxWindowExample(QMainWindow):
         item = self.layouts_combo.itemText(index)
         layout_method = getattr(ly, str(item))
         pos = layout_method(self.graph_model)
-        pos = self.network_controller.networkx_positions_to_pixels(pos)
+        pos = self.network_controller.graph_widget.networkx_positions_to_pixels(pos)
         self.graph_widget.set_node_positions(pos)
 
 
