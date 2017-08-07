@@ -578,6 +578,13 @@ class QNodeGraphicItem(QGraphicsItem):
         self.setPos(uniform(-10, 10), uniform(-10, 10))
         self.node_shape = NodeShapes.SQUARE
         self.node_config = graph_config.NodeConfig
+        self.mass_center = QPointF(0, 0)
+
+    def set_mass_center(self, mass_center):
+        print "Setting mass center to %s" % mass_center
+        self.mass_center = mass_center
+        self.calculate_forces()
+        self.advance()
 
     def set_node_shape(self, shape):
         if shape in NodeShapes:
@@ -626,9 +633,9 @@ class QNodeGraphicItem(QGraphicsItem):
             xvel += pos.x() / weight
             yvel += pos.y() / weight
 
-        # Invisible Node pulling to the center
-        xvel -= (self.pos().x() / 2) / (weight / 4)
-        yvel -= (self.pos().y() / 2) / (weight / 4)
+        # Invisible Node pulling to the mass center
+        xvel += (self.mapFromScene(self.mass_center).x() / 2) / (weight / 4)
+        yvel += (self.mapFromScene(self.mass_center).y() / 2) / (weight / 4)
 
         if qAbs(xvel) < 0.1 and qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
@@ -637,6 +644,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.newPos = self.pos() + QPointF(xvel, yvel)
         self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
+
 
     def advance(self):
         if self.newPos == self.pos() or self.isSelected():
@@ -822,13 +830,20 @@ class QNetworkxWidget(QGraphicsView):
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
+        action2 = QAction("Set mass center", self)
+        action2.triggered.connect(self.set_mass_center)
         self.node_groups_menu = self.menu.addMenu("Add to group...")
         self.new_group_action = QAction("Add new group...", self)
         self.new_group_action.triggered.connect(self.create_new_node_group)
         self.node_groups_menu.addAction(self.new_group_action)
         self.node_groups_menu.addSeparator()
         self.menu.addAction(action1)
+        self.menu.addAction(action2)
         self.menu.addSeparator()
+
+    def set_mass_center(self):
+        for label, data in self.nx_graph.nodes(data=True):
+            data['item'].set_mass_center(self.last_menu_position)
 
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
@@ -1183,6 +1198,7 @@ class QNetworkxWidget(QGraphicsView):
             else:
                 self.node_groups_menu.setEnabled(True)
                 self.node_groups_menu.setToolTip(u'')
+            self.last_menu_position = self.mapToScene(event.pos())
             self.menu.exec_(event.globalPos())
             event.setAccepted(True)
         else:
