@@ -816,6 +816,7 @@ class QNetworkxWidget(QGraphicsView):
         self.setDragMode(QGraphicsView.RubberBandDrag)
 
         self.node_groups = {}
+        self.node_groups_actions = {}
 
         self.menu = QMenu()
         action1 = QAction("Panning mode", self)
@@ -823,13 +824,13 @@ class QNetworkxWidget(QGraphicsView):
         action1.setCheckable(True)
         self.node_groups_menu = self.menu.addMenu("Add to group...")
         self.new_group_action = QAction("Add new group...", self)
-        self.new_group_action.triggered.connect(self.add_new_node_group)
+        self.new_group_action.triggered.connect(self.create_new_node_group)
         self.node_groups_menu.addAction(self.new_group_action)
         self.node_groups_menu.addSeparator()
         self.menu.addAction(action1)
         self.menu.addSeparator()
 
-    def add_new_node_group(self, node_group_name=None):
+    def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
             text, result = QInputDialog.getText(self, u"New node group", u"Node group name:", QLineEdit.Normal, "...")
             if (result and not text.isEmpty()):
@@ -838,24 +839,38 @@ class QNetworkxWidget(QGraphicsView):
                 return
         nodes = self.selected_nodes()
         self.node_groups[node_group_name] = nodes
-        self.node_groups_menu.addAction(node_group_name)
+        action = self.node_groups_menu.addAction(node_group_name)
+        action.triggered.connect(lambda a: self.add_nodes_to_node_group(node_group_name=node_group_name))
+        self.node_groups_actions[node_group_name] = action
         print "Created new group %s with nodes %s" % (node_group_name, nodes)
 
+    def remove_node_group(self, node_group_name):
+        del self.node_groups[node_group_name]
+        self.node_groups_menu.removeAction()
 
-    def contextMenuEvent(self, event):
-        self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
-        selection_path = QPainterPath()
-        selection_path.addPolygon(self.mapToScene(self.boundingRect()))
-        if event.modifiers() & Qt.CTRL:
-            selection_path += self.scene().selectionArea()
+    def add_nodes_to_node_group(self, node_group_name, nodes_names=None):
+        if not nodes_names:
+            nodes_names = self.selected_nodes()
+            if not nodes_names:
+                raise Exception("No node provided to be added to %s node group" % node_group_name)
+        print "Adding %s to %s node group" % (nodes_names, node_group_name)
+        for node_name in nodes_names:
+            if node_name in self.nx_graph.nodes():
+                if node_group_name in self.node_groups and node_name not in self.node_groups[node_group_name]:
+                    self.node_groups[node_group_name].append(node_name)
+                else:
+                    raise Exception("Can't add a node to a non existing group")
+            else:
+                raise Exception("Can't add a node non existing in the graph to a group")
+
+    def remove_node_from_node_group(self, node_name, node_group_name):
+        if node_name in self.nx_graph.nodes():
+            if node_group_name in self.node_groups and node_name in self.node_groups[node_group_name]:
+                self.node_groups[node_group_name].remove(node_name)
+            else:
+                raise Exception("Can't add a node to a non existing group")
         else:
-            self.scene().clearSelection()
-        self.scene().setSelectionArea(selection_path)
-        if self.menu:
-            self.menu.exec_(event.screenPos())
-            event.setAccepted(True)
-        else:
-            self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
+            raise Exception("Can't add a node non existing in the graph to a group")
 
 
     #     self.zoom_in_action = QAction("Zoom in", self)
@@ -919,11 +934,11 @@ class QNetworkxWidget(QGraphicsView):
 
     def add_node(self, label=None, position=None):
         if label is None:
-            node_label = "Node %s" % len(self.nx_graph.nodes())
+            node_label = u"Node %s" % len(self.nx_graph.nodes())
+        elif isinstance(label, QString):
+            node_label = unicode(label.toUtf8(), encoding="UTF-8")
         else:
-            node_label = label
-        if isinstance(label, QString):
-            label = unicode(label.toUtf8(), encoding="UTF-8")
+            node_label = unicode(str(label), encoding="UTF-8")
         if label not in self.nx_graph.nodes():
             node = QNodeGraphicItem(self, node_label)
             self.nx_graph.add_node(node_label, item=node)
@@ -943,6 +958,10 @@ class QNetworkxWidget(QGraphicsView):
     def add_edge(self, label=None, first_node=None, second_node=None, node_tuple=None, label_visible=True):
         if node_tuple:
             node1_label, node2_label = node_tuple
+            if not isinstance(node1_label, unicode):
+                node1_label = unicode(str(node1_label), encoding="UTF-8")
+            if not isinstance(node2_label, unicode):
+                node2_label = unicode(str(node2_label), encoding="UTF-8")
             if node1_label in self.nx_graph.nodes() and node2_label in self.nx_graph.nodes():
                 node1 = self.nx_graph.node[node1_label]['item']
                 node2 = self.nx_graph.node[node2_label]['item']
@@ -1093,6 +1112,8 @@ class QNetworkxWidget(QGraphicsView):
 
     def set_node_positions(self, position_dict):
         for node_str, position in position_dict.items():
+            if not isinstance(node_str, unicode):
+                node_str = unicode(str(node_str), encoding="UTF-8")
             if node_str in self.nx_graph.nodes():
                 node = self.nx_graph.node[node_str]['item']
                 node.setPos(position[0], position[1])
@@ -1156,10 +1177,37 @@ class QNetworkxWidget(QGraphicsView):
     def contextMenuEvent(self, event):
         # self._logger.debug("ContextMenuEvent received on graph")
         if self.menu:
+            if not self.selected_nodes():
+                self.node_groups_menu.setEnabled(False)
+                self.node_groups_menu.setToolTip(u'Some node have to be selected')
+            else:
+                self.node_groups_menu.setEnabled(True)
+                self.node_groups_menu.setToolTip(u'')
             self.menu.exec_(event.globalPos())
             event.setAccepted(True)
         else:
             self._logger.warning("No menu defined yet for QNetworkxWidget. Use add_context_menu.")
+
+    # def contextMenuEvent(self, event):
+    #     self._logger.debug("ContextMenuEvent received on node %s" % str(self.label.toPlainText()))
+    #     selection_path = QPainterPath()
+    #     selection_path.addPolygon(self.mapToScene(self.boundingRect()))
+    #     if event.modifiers() & Qt.CTRL:
+    #         selection_path += self.scene().selectionArea()
+    #     else:
+    #         self.scene().clearSelection()
+    #     self.scene().setSelectionArea(selection_path)
+    #     if self.menu:
+    #         if self.selected_nodes():
+    #             self.node_groups_menu.setEnabled(True)
+    #             self.node_groups_menu.setToolTip(u'')
+    #         else:
+    #             self.node_groups_menu.setEnabled(False)
+    #             self.node_groups_menu.setToolTip(u'Some node have to be selected')
+    #         self.menu.exec_(event.screenPos())
+    #         event.setAccepted(True)
+    #     else:
+    #         self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
 
     def set_nodes_shape(self, shape):
         for label, data in self.nx_graph.nodes(data=True):
