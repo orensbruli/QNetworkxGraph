@@ -553,7 +553,7 @@ class QNodeGraphicItem(QGraphicsItem):
     Type = QGraphicsItem.UserType + 1
 
     def __init__(self, graph_widget, label):
-        self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
+        self._logger = logging.getLogger("QNetworkxGraph.QNodeGraphicItem")
         self._logger.setLevel(logging.DEBUG)
         super(QNodeGraphicItem, self).__init__()
 
@@ -581,7 +581,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.mass_center = QPointF(0, 0)
 
     def set_mass_center(self, mass_center):
-        print "Setting mass center to %s" % mass_center
+        self._logger.debug("Setting mass center to %s" % mass_center)
         self.mass_center = mass_center
         self.calculate_forces()
         self.advance()
@@ -1191,6 +1191,21 @@ class QNetworkxWidget(QGraphicsView):
 
     def contextMenuEvent(self, event):
         # self._logger.debug("ContextMenuEvent received on graph")
+
+        # if the user has right clicked on an item other than the background, this code
+        # will pop up the correct context menu and return
+        object = self.itemAt(event.pos())
+
+        if isinstance(object, QGraphicsTextItem):
+            textValue = str(object.toPlainText())
+            node = self.get_node(textValue)['item']
+            node.menu.exec_(event.globalPos())
+            return
+        elif isinstance(object, QNodeGraphicItem):
+            object.menu.exec_(event.globalPos())
+            return
+
+        # if the user has right clicked in the background, this will pop up the general context menu
         if self.menu:
             if not self.selected_nodes():
                 self.node_groups_menu.setEnabled(False)
