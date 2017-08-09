@@ -1190,7 +1190,8 @@ class QNetworkxWidget(QGraphicsView):
         self.delete_graph()
 
     def contextMenuEvent(self, event):
-        # self._logger.debug("ContextMenuEvent received on graph")
+        if self.dragMode() == QGraphicsView.ScrollHandDrag:
+            return
 
         # if the user has right clicked on an item other than the background, this code
         # will pop up the correct context menu and return
