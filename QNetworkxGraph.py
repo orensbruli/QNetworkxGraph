@@ -841,8 +841,12 @@ class QNetworkxWidget(QGraphicsView):
         self.menu.addSeparator()
 
     def set_mass_center(self):
-        for label, data in self.nx_graph.nodes(data=True):
-            data['item'].set_mass_center(self.last_menu_position)
+        if self.selected_nodes():
+            for node_label in self.selected_nodes():
+                self.nx_graph.node[node_label]['item'].set_mass_center(self.last_menu_position)
+        else:
+            for label, data in self.nx_graph.nodes(data=True):
+                data['item'].set_mass_center(self.last_menu_position)
 
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
@@ -1197,7 +1201,7 @@ class QNetworkxWidget(QGraphicsView):
         object = self.itemAt(event.pos())
 
         if isinstance(object, QGraphicsTextItem):
-            textValue = str(object.toPlainText())
+            textValue = unicode(str(object.toPlainText()), encoding="UTF-8")
             node = self.get_node(textValue)['item']
             node.menu.exec_(event.globalPos())
             return
