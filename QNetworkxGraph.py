@@ -1044,7 +1044,7 @@ class QNetworkxWidget(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         if self.panning_mode:
-            self.setDragMode(QGraphicsView.NoDrag)
+            self.setDragMode(QGraphicsView.RubberBandDrag)
 
         QGraphicsView.mouseReleaseEvent(self, event)
 
