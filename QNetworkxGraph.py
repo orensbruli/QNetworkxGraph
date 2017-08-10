@@ -660,7 +660,6 @@ class QNodeGraphicItem(QGraphicsItem):
                       height)
 
     def shape(self):
-
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
         path = QPainterPath()
@@ -681,11 +680,7 @@ class QNodeGraphicItem(QGraphicsItem):
 
         # Gradient depends on the image selected or not
         gradient = QRadialGradient(-3, -3, 10)
-        if option.state & QStyle.State_Sunken:
-            pen = QPen(self.node_config.NodeColors.Sunken.Edge.PenColor)
-            pen.setWidth(self.border_width * self.node_config.NodeColors.Sunken.Edge.PenWidth)
-            brush = QBrush(self.node_config.NodeColors.Sunken.Fill)
-        elif option.state & QStyle.State_Selected:
+        if option.state & QStyle.State_Selected:
             pen = QPen(self.node_config.NodeColors.Selected.Edge.PenColor)
             pen.setWidth(self.border_width * self.node_config.NodeColors.Selected.Edge.PenWidth)
             brush = QBrush(self.node_config.NodeColors.Selected.Fill)
@@ -733,6 +728,10 @@ class QNodeGraphicItem(QGraphicsItem):
         return super(QNodeGraphicItem, self).itemChange(change, value)
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self.setSelected(True)
+        else:
+            self.setSelected(False)
         self.update()
         super(QNodeGraphicItem, self).mousePressEvent(event)
 
@@ -933,7 +932,6 @@ class QNetworkxWidget(QGraphicsView):
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-
     def get_current_nodes_positions(self):
         position_dict = {}
         for node_label, data in self.nx_graph.nodes(data=True):
@@ -1028,6 +1026,8 @@ class QNetworkxWidget(QGraphicsView):
                 self.setDragMode(QGraphicsView.ScrollHandDrag)
                 self.last_position = event.pos()
 
+        self.scene.clearSelection()
+
         QGraphicsView.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
@@ -1049,7 +1049,6 @@ class QNetworkxWidget(QGraphicsView):
         QGraphicsView.mouseReleaseEvent(self, event)
 
     def timerEvent(self, event):
-
         items_moved = False
         for label, data in self.nx_graph.nodes(data=True):
             data['item'].calculate_forces()
