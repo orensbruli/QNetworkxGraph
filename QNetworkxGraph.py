@@ -736,8 +736,6 @@ class QNodeGraphicItem(QGraphicsItem):
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
             self.setSelected(True)
-        #else:
-        #    self.setSelected(False)
         self.update()
         super(QNodeGraphicItem, self).mousePressEvent(event)
 
@@ -1039,8 +1037,8 @@ class QNetworkxWidget(QGraphicsView):
                 self.last_position = event.pos()
 
         # If right button, avoid unselecting nodes not passing the event to the parent
-        #if not event.buttons() & Qt.RightButton:
-        QGraphicsView.mousePressEvent(self, event)
+        if not event.buttons() & Qt.RightButton:
+            QGraphicsView.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
         if self.panning_mode:
