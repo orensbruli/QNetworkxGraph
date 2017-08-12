@@ -579,6 +579,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.node_shape = NodeShapes.SQUARE
         self.node_config = graph_config.NodeConfig
         self.mass_center = QPointF(0, 0)
+        self.isComponentRunning = False
 
     def set_mass_center(self, mass_center):
         self._logger.debug("Setting mass center to %s" % mass_center)
@@ -645,7 +646,6 @@ class QNodeGraphicItem(QGraphicsItem):
         self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
 
-
     def advance(self):
         if self.newPos == self.pos() or self.isSelected():
             return False
@@ -660,7 +660,6 @@ class QNodeGraphicItem(QGraphicsItem):
                       height)
 
     def shape(self):
-
         x_coord = y_coord = (-1 * (self.size / 2)) - self.border_width
         width = height = self.size
         path = QPainterPath()
@@ -681,18 +680,20 @@ class QNodeGraphicItem(QGraphicsItem):
 
         # Gradient depends on the image selected or not
         gradient = QRadialGradient(-3, -3, 10)
-        if option.state & QStyle.State_Sunken:
-            pen = QPen(self.node_config.NodeColors.Sunken.Edge.PenColor)
-            pen.setWidth(self.border_width * self.node_config.NodeColors.Sunken.Edge.PenWidth)
-            brush = QBrush(self.node_config.NodeColors.Sunken.Fill)
-        elif option.state & QStyle.State_Selected:
-            pen = QPen(self.node_config.NodeColors.Selected.Edge.PenColor)
-            pen.setWidth(self.border_width * self.node_config.NodeColors.Selected.Edge.PenWidth)
-            brush = QBrush(self.node_config.NodeColors.Selected.Fill)
+
+        if self.isComponentRunning:
+            node_colors = self.node_config.RunningNodeColors
         else:
-            pen = QPen(self.node_config.NodeColors.Default.Edge.PenColor)
-            pen.setWidth(self.border_width * self.node_config.NodeColors.Default.Edge.PenWidth)
-            brush = QBrush(self.node_config.NodeColors.Default.Fill)
+            node_colors = self.node_config.StoppedNodeColors
+
+        if option.state & QStyle.State_Selected:
+            pen = QPen(node_colors.Selected.Edge.PenColor)
+            pen.setWidth(self.border_width * node_colors.Selected.Edge.PenWidth)
+            brush = QBrush(node_colors.Selected.Fill)
+        else:
+            pen = QPen(node_colors.Default.Edge.PenColor)
+            pen.setWidth(self.border_width * node_colors.Default.Edge.PenWidth)
+            brush = QBrush(node_colors.Default.Fill)
 
         # Fill with gradient
         painter.setBrush(brush)
@@ -733,6 +734,8 @@ class QNodeGraphicItem(QGraphicsItem):
         return super(QNodeGraphicItem, self).itemChange(change, value)
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self.setSelected(True)
         self.update()
         super(QNodeGraphicItem, self).mousePressEvent(event)
 
@@ -746,6 +749,9 @@ class QNodeGraphicItem(QGraphicsItem):
         self.calculate_forces()
         self.advance()
         self.update()
+
+    def set_component_running_status(self, isComponentRunning):
+        self.isComponentRunning = isComponentRunning
 
     def animate_node(self, animate):
         self.animate = animate
@@ -781,6 +787,8 @@ class QNodeGraphicItem(QGraphicsItem):
             self.menu.exec_(event.screenPos())
             event.setAccepted(True)
         else:
+            event.setAccepted(False)
+            super(QNodeGraphicItem, self).contextMenuEvent(event)
             self._logger.warning("No QNodeGraphicItem defined yet. Use add_context_menu.")
 
 
@@ -845,9 +853,6 @@ class QNetworkxWidget(QGraphicsView):
         if self.selected_nodes():
             for node_label in self.selected_nodes():
                 self.nx_graph.node[node_label]['item'].set_mass_center(self.last_menu_position)
-        else:
-            for label, data in self.nx_graph.nodes(data=True):
-                data['item'].set_mass_center(self.last_menu_position)
 
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
@@ -937,7 +942,6 @@ class QNetworkxWidget(QGraphicsView):
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-
     def get_current_nodes_positions(self):
         position_dict = {}
         for node_label, data in self.nx_graph.nodes(data=True):
@@ -970,7 +974,7 @@ class QNetworkxWidget(QGraphicsView):
 
     def get_node(self, label):
         if label in self.nx_graph.nodes():
-            return self.nx_graph.node[label]
+            return self.nx_graph.node[str(label)]
         else:
             return None
 
@@ -1055,7 +1059,6 @@ class QNetworkxWidget(QGraphicsView):
         QGraphicsView.mouseReleaseEvent(self, event)
 
     def timerEvent(self, event):
-
         items_moved = False
         for label, data in self.nx_graph.nodes(data=True):
             data['item'].calculate_forces()
@@ -1197,19 +1200,17 @@ class QNetworkxWidget(QGraphicsView):
 
     def contextMenuEvent(self, event):
         if self.dragMode() == QGraphicsView.ScrollHandDrag:
+            event.setAccepted(False)
+            super(QNetworkxWidget, self).contextMenuEvent(event)
             return
 
         # if the user has right clicked on an item other than the background, this code
         # will pop up the correct context menu and return
         object = self.itemAt(event.pos())
 
-        if isinstance(object, QGraphicsTextItem):
-            textValue = unicode(str(object.toPlainText()), encoding="UTF-8")
-            node = self.get_node(textValue)['item']
-            node.menu.exec_(event.globalPos())
-            return
-        elif isinstance(object, QNodeGraphicItem):
-            object.menu.exec_(event.globalPos())
+        if object:
+            event.setAccepted(False)
+            super(QNetworkxWidget, self).contextMenuEvent(event)
             return
 
         # if the user has right clicked in the background, this will pop up the general context menu
@@ -1224,6 +1225,8 @@ class QNetworkxWidget(QGraphicsView):
             self.menu.exec_(event.globalPos())
             event.setAccepted(True)
         else:
+            event.setAccepted(False)
+            super(QNetworkxWidget, self).contextMenuEvent(event)
             self._logger.warning("No menu defined yet for QNetworkxWidget. Use add_context_menu.")
 
     # def contextMenuEvent(self, event):
