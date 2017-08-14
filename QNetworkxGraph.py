@@ -579,7 +579,7 @@ class QNodeGraphicItem(QGraphicsItem):
         self.node_shape = NodeShapes.SQUARE
         self.node_config = graph_config.NodeConfig
         self.mass_center = QPointF(0, 0)
-        self.isComponentRunning = False
+        self.node_profile = 'Profile_1'
 
     def set_mass_center(self, mass_center):
         self._logger.debug("Setting mass center to %s" % mass_center)
@@ -681,10 +681,9 @@ class QNodeGraphicItem(QGraphicsItem):
         # Gradient depends on the image selected or not
         gradient = QRadialGradient(-3, -3, 10)
 
-        if self.isComponentRunning:
-            node_colors = self.node_config.RunningNodeColors
-        else:
-            node_colors = self.node_config.StoppedNodeColors
+        node_colors = self.node_config[self.node_profile]
+
+        #print self.node_config[1]
 
         if option.state & QStyle.State_Selected:
             pen = QPen(node_colors.Selected.Edge.PenColor)
@@ -750,8 +749,9 @@ class QNodeGraphicItem(QGraphicsItem):
         self.advance()
         self.update()
 
-    def set_component_running_status(self, isComponentRunning):
-        self.isComponentRunning = isComponentRunning
+    def set_node_profile(self, node_profile):
+        self.node_profile = node_profile
+        self.update()
 
     def animate_node(self, animate):
         self.animate = animate
