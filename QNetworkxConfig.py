@@ -7,7 +7,7 @@ from PyQt4.QtGui import QColor
 QNetworkxConfig_default= {
     "NodeConfig":
         {
-            "RunningNodeColors":
+            "Profile_1":
                 {
                     "Sunken":
                         {
@@ -16,7 +16,7 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(Qt.lightGray),
                                     "PenWidth": 2
                                 },
-                            "Fill": QColor(0, 255, 0, 127)
+                            "Fill": QColor(255, 0, 0, 127)
                         },
                     "Selected":
                         {
@@ -25,7 +25,7 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(255, 0, 0, 255),
                                     "PenWidth": 1
                                 },
-                            "Fill": QColor(0, 255, 0, 127)
+                            "Fill": QColor(255, 0, 0, 127)
                         },
                     "Default":
                         {
@@ -34,10 +34,10 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(200, 0, 100, 127),
                                     "PenWidth": 1
                                 },
-                            "Fill": QColor(0, 255, 0, 127)
+                            "Fill": QColor(255, 0, 0, 127)
                         }
                  },
-            "StoppedNodeColors":
+            "Profile_2":
                 {
                     "Sunken":
                         {
@@ -46,7 +46,7 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(Qt.lightGray),
                                     "PenWidth": 2
                                 },
-                            "Fill": QColor(255, 0, 0, 127)
+                            "Fill": QColor(0, 255, 0, 127)
                         },
                     "Selected":
                         {
@@ -55,7 +55,7 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(255, 0, 0, 255),
                                     "PenWidth": 1
                                 },
-                            "Fill": QColor(255, 0, 0, 127)
+                            "Fill": QColor(0, 255, 0, 127)
                         },
                     "Default":
                         {
@@ -64,7 +64,7 @@ QNetworkxConfig_default= {
                                     "PenColor": QColor(200, 0, 100, 127),
                                     "PenWidth": 1
                                 },
-                            "Fill": QColor(255, 0, 0, 127)
+                            "Fill": QColor(0, 255, 0, 127)
                         }
                  }
         },
