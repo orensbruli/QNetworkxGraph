@@ -1,0 +1,124 @@
+{
+  "NodeConfig": {
+    "Sunken": {
+      "Edge": {
+        "PenColor": {
+          "_type": "QColor",
+          "_value": "lightgray"
+        },
+        "PenWidth": 2
+      },
+      "Fill": {
+        "_type": "QColor",
+        "_value": [
+          255,
+          0,
+          0,
+          127
+        ]
+      }
+    },
+    "Selected": {
+      "Edge": {
+        "PenColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        "PenWidth": 1
+      },
+      "Fill": {
+        "_type": "QColor",
+        "_value": [
+          255,
+          0,
+          0,
+          127
+        ]
+      }
+    },
+    "Default": {
+      "Edge": {
+        "PenColor": {
+          "_type": "QColor",
+          "_value": [
+            200,
+            0,
+            100,
+            127
+          ]
+        },
+        "PenWidth": 1
+      },
+      "Fill": {
+        "_type": "QColor",
+        "_value": [
+          255,
+          0,
+          0,
+          127
+        ]
+      }
+    }
+  },
+  "EdgeConfig": {
+    "EdgeColors": {
+      "Default": {
+        "LineColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        },
+        "ArrowEdgeColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        },
+        "ArrowFillColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        }
+      },
+      "Self": {
+        "LineColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        },
+        "ArrowEdgeColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        },
+        "ArrowFillColor": {
+          "_type": "QColor",
+          "_value": [
+            255,
+            255,
+            255
+          ]
+        }
+      }
+    }
+  }
+}

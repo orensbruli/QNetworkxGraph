@@ -58,8 +58,10 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 logger.info('Created main logger')
 
-from QNetworkxConfig import QNetworkxConfig, QNetworkxConfig_default
-graph_config= QNetworkxConfig(QNetworkxConfig_default)
+from QNetworkxStylesManager import QNetworkxStylesManager
+
+graph_config = QNetworkxStylesManager()
+graph_config.load_styles()
 
 class QEdgeGraphicItem(QGraphicsItem):
     Pi = math.pi
@@ -99,7 +101,8 @@ class QEdgeGraphicItem(QGraphicsItem):
         self.is_directed = directed
         self.setZValue(11)
         self.set_label_visible(label_visible)
-        self.edge_config = graph_config.EdgeConfig
+        self.edge_profile = 'default'
+        self.edge_config = graph_config[self.edge_profile].EdgeConfig
 
     def set_label_visible(self, boolean):
         self.label.setVisible(boolean)
@@ -577,9 +580,9 @@ class QNodeGraphicItem(QGraphicsItem):
         self.menu = None
         self.setPos(uniform(-10, 10), uniform(-10, 10))
         self.node_shape = NodeShapes.SQUARE
-        self.node_config = graph_config.NodeConfig
         self.mass_center = QPointF(0, 0)
-        self.node_profile = 'Profile_1'
+        self.node_profile = 'default'
+        self.node_config = graph_config[self.node_profile].NodeConfig
 
     def set_mass_center(self, mass_center):
         self._logger.debug("Setting mass center to %s" % mass_center)
@@ -681,7 +684,7 @@ class QNodeGraphicItem(QGraphicsItem):
         # Gradient depends on the image selected or not
         gradient = QRadialGradient(-3, -3, 10)
 
-        node_colors = self.node_config[self.node_profile]
+        node_colors = self.node_config
 
         #print self.node_config[1]
 
@@ -751,6 +754,7 @@ class QNodeGraphicItem(QGraphicsItem):
 
     def set_node_profile(self, node_profile):
         self.node_profile = node_profile
+        self.node_config = graph_config[self.node_profile].NodeConfig
         self.update()
 
     def animate_node(self, animate):

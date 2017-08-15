@@ -1,0 +1,53 @@
+{
+  "NodeConfig": {
+    "Sunken": {
+      "Edge": {
+        "PenColor": {
+          "_type": "QColor",
+          "_value": "lightgray"
+        },
+        "PenWidth": 2
+      },
+      "Fill": [
+        0,
+        255,
+        0,
+        127
+      ]
+    },
+    "Selected": {
+      "Edge": {
+        "PenColor": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "PenWidth": 1
+      },
+      "Fill": [
+        0,
+        255,
+        0,
+        127
+      ]
+    },
+    "Default": {
+      "Edge": {
+        "PenColor": [
+          200,
+          0,
+          100,
+          127
+        ],
+        "PenWidth": 1
+      },
+      "Fill": [
+        0,
+        255,
+        0,
+        127
+      ]
+    }
+  }
+}
