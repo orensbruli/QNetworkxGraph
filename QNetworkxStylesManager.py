@@ -72,7 +72,10 @@ class QNetworkxStylesManager(dict):
                     style_dict = json.load(data_file, cls=QtColorsDecoder)
         return style_dict
 
-    def load_styles(self, path='styles'):
+    def load_styles(self, path=None):
+        if path is None:
+            path = os.path.join(os.path.dirname(__file__), 'styles')
+
         files = os.listdir(path)
         for file in files:
             if file.endswith(".json"):
