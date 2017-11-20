@@ -607,6 +607,8 @@ class QNodeGraphicItem(QGraphicsItem):
             if not isinstance(item, QNodeGraphicItem):
                 continue
 
+
+
             line = QLineF(self.mapFromItem(item, 0, 0),
                           QPointF(0, 0))
             dx = line.dx()
@@ -630,6 +632,9 @@ class QNodeGraphicItem(QGraphicsItem):
         xvel -= (self.pos().x() / 2) / (weight / 4)
         yvel -= (self.pos().y() / 2) / (weight / 4)
 
+
+
+        # Low noise elimination
         if qAbs(xvel) < 0.1 and qAbs(yvel) < 0.1:
             xvel = yvel = 0.0
 
@@ -637,6 +642,66 @@ class QNodeGraphicItem(QGraphicsItem):
         self.newPos = self.pos() + QPointF(xvel, yvel)
         self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
+
+    def calculate_forces_regions(self):
+        if not self.scene() or self.scene().mouseGrabberItem() is self or not self.animate:
+            self.newPos = self.pos()
+            return
+
+
+        # Sum up all forces pushing this item away.
+        xvel = 0.0
+        yvel = 0.0
+        for item in self.scene().items():
+            if not isinstance(item, QNodeGraphicItem):
+                continue
+
+            line = QLineF(self.mapFromItem(item, 0, 0),
+                          QPointF(0, 0))
+            dx = line.dx()
+            dy = line.dy()
+            l = 2.0 * (dx * dx + dy * dy)
+            if l > 0:
+                xvel += (dx * (7 * self.size)) / l
+                yvel += (dy * (7 * self.size)) / l
+
+        # Now subtract all forces pulling items together.
+        weight = (len(self.edgeList) + 1) * self.size
+        for edge in self.edgeList:
+            if edge.source_node() is self:
+                pos = self.mapFromItem(edge.dest_node(), 0, 0)
+            else:
+                pos = self.mapFromItem(edge.source_node(), 0, 0)
+            xvel += pos.x() / weight
+            yvel += pos.y() / weight
+
+        # Invisible Node pulling to the center
+        xvel -= (self.pos().x() / 2) / (weight / 4)
+        yvel -= (self.pos().y() / 2) / (weight / 4)
+
+        # Low noise elimination
+        if qAbs(xvel) < 0.1 and qAbs(yvel) < 0.1:
+            xvel = yvel = 0.0
+
+        scene_rect = self.scene().sceneRect()
+        self.newPos = self.pos() + QPointF(xvel, yvel)
+
+        self.check_region_limits())
+
+        self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
+        self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
+
+    def check_region_limits(self):
+        p = self.newPos
+        if self.region == "circle":
+            localPos = p - self.region.center()
+            length = np.sqrt(p.x()*p.x + p.y()*p-y())
+            posAtBorder = (localPos/length)*self.region.radius
+            self.newPos.setX(min(p.x(), posAtBorder.x() - 10))
+            self.newPos.setY(min(p.y(), posAtBorder.y() - 10))
+        if self.region == "square":
+            self.newPos.setX(min(max(p.x(), self.region.rect.left() + 10), self.region.rect.right() - 10))
+            self.newPos.setY(min(max(p.y(), self.region.rect.top() + 10), self.region.rect.bottom() - 10))
 
     def advance(self):
         if self.newPos == self.pos() or self.isSelected():
@@ -894,7 +959,7 @@ class QNetworkxWidget(QGraphicsView):
         if not self.timer_id:
             self.timer_id = self.startTimer(1000 / 25)
 
-    def add_node(self, label=None, position=None):
+    def add_node(self, label=None, position=None, region=None):
         if label is None:
             node_label = "Node %s" % len(self.nx_graph.nodes())
         else:
@@ -903,7 +968,7 @@ class QNetworkxWidget(QGraphicsView):
             label = unicode(label.toUtf8(), encoding="UTF-8")
         if label not in self.nx_graph.nodes():
             node = QNodeGraphicItem(self, node_label)
-            self.nx_graph.add_node(node_label, item=node)
+            self.nx_graph.add_node(node_label, item=node, confiner=region)
             self.scene.addItem(node)
             if position and isinstance(position, tuple):
                 node.setPos(QPointF(position[0], position[1]))
