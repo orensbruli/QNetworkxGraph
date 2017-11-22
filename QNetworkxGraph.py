@@ -648,7 +648,6 @@ class QNodeGraphicItem(QGraphicsItem):
             self.newPos = self.pos()
             return
 
-
         # Sum up all forces pushing this item away.
         xvel = 0.0
         yvel = 0.0
@@ -686,7 +685,7 @@ class QNodeGraphicItem(QGraphicsItem):
         scene_rect = self.scene().sceneRect()
         self.newPos = self.pos() + QPointF(xvel, yvel)
 
-        self.check_region_limits())
+        self.check_region_limits()
 
         self.newPos.setX(min(max(self.newPos.x(), scene_rect.left() + 10), scene_rect.right() - 10))
         self.newPos.setY(min(max(self.newPos.y(), scene_rect.top() + 10), scene_rect.bottom() - 10))
