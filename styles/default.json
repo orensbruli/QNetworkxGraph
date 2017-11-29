@@ -46,9 +46,9 @@
         "PenColor": {
           "_type": "QColor",
           "_value": [
-            200,
             0,
-            100,
+            0,
+            0,
             127
           ]
         },
@@ -71,25 +71,25 @@
         "LineColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         },
         "ArrowEdgeColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         },
         "ArrowFillColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         }
       },
@@ -97,25 +97,25 @@
         "LineColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         },
         "ArrowEdgeColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         },
         "ArrowFillColor": {
           "_type": "QColor",
           "_value": [
-            255,
-            255,
-            255
+            0,
+            0,
+            0
           ]
         }
       }

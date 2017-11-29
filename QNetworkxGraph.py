@@ -67,7 +67,6 @@ graph_config.load_styles()
 class QEdgeGraphicItem(QGraphicsItem):
 	Pi = math.pi
 	TwoPi = 2.0 * Pi
-
 	Type = QGraphicsItem.UserType + 2
 
 	def __init__(self, first_node, second_node, label=None, directed=False, label_visible=True):
@@ -556,7 +555,7 @@ class NodeShapes(Enum):
 class QNodeGraphicItem(QGraphicsItem):
 	Type = QGraphicsItem.UserType + 1
 
-	def __init__(self, graph_widget, label):
+	def __init__(self, graph_widget, label, tipo):
 		self._logger = logging.getLogger("QNetworkxGraph.QNodeGraphicItem")
 		self._logger.setLevel(logging.DEBUG)
 		super(QNodeGraphicItem, self).__init__()
@@ -571,18 +570,21 @@ class QNodeGraphicItem(QGraphicsItem):
 		self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
 		self.setZValue(10)
 		self.size = 40
-		self.border_width = 4
+		self.border_width = 1
 		self.label = QGraphicsTextItem(str(label))
 		self.label.setParentItem(self)
-		self.label.setDefaultTextColor(Qt.white)
+		self.label.setDefaultTextColor(Qt.black)
 		rect = self.label.boundingRect()
 		self.label.setPos(-rect.width() / 2, -rect.height() / 2)
 		self.animate = False
 		self.menu = None
-		self.setPos(uniform(-10, 10), uniform(-10, 10))
+		self.setPos(uniform(-100, 100), uniform(-100, 100))
 		self.node_shape = NodeShapes.SQUARE
 		self.mass_center = QPointF(0, 0)
-		self.node_profile = 'default'
+		if tipo == "metabolite":
+			self.node_profile = 'default'
+		else:
+			self.node_profile = 'Profile_1'
 		self.node_config = graph_config[self.node_profile].NodeConfig
 
 	def set_mass_center(self, mass_center):
@@ -749,6 +751,7 @@ class QNodeGraphicItem(QGraphicsItem):
 	def set_size(self, new_size):
 		self.prepareGeometryChange()
 		self.size = new_size
+		print(self.size)
 		self.calculate_forces()
 		self.advance()
 		self.update()
@@ -830,7 +833,7 @@ class QNetworkxWidget(QGraphicsView):
 		super(QNetworkxWidget, self).__init__(parent)
 
 		self.timer_id = 0
-		self.background_color = QColor(0, 0, 0)
+		self.background_color = QColor(255, 255, 255)
 		self.last_position = None
 		self.current_position = None
 		self.panning_mode = False
@@ -985,7 +988,7 @@ class QNetworkxWidget(QGraphicsView):
 		if not self.timer_id:
 			self.timer_id = self.startTimer(1000 / 25)
 
-	def add_node(self, label=None, position=None, region=None):
+	def add_node(self, label=None, position=None, tipo=None):
 		if label is None:
 			node_label = u"Node %s" % len(self.nx_graph.nodes())
 		elif isinstance(label, QString):
@@ -993,8 +996,8 @@ class QNetworkxWidget(QGraphicsView):
 		else:
 			node_label = unicode(str(label), encoding="UTF-8")
 		if label not in self.nx_graph.nodes():
-			node = QNodeGraphicItem(self, node_label)
-			self.nx_graph.add_node(node_label, item=node, region=region)
+			node = QNodeGraphicItem(self, node_label, tipo=tipo)
+			self.nx_graph.add_node(node_label, item=node, tipo=tipo)
 			self.scene.addItem(node)
 			if position and isinstance(position, tuple):
 				node.setPos(QPointF(position[0], position[1]))

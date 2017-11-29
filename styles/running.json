@@ -18,7 +18,7 @@
     "Selected": {
       "Edge": {
         "PenColor": [
-          255,
+          0,
           0,
           0,
           255
@@ -35,9 +35,9 @@
     "Default": {
       "Edge": {
         "PenColor": [
-          200,
           0,
-          100,
+          0,
+          0,
           127
         ],
         "PenWidth": 1
