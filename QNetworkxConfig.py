@@ -96,5 +96,3 @@ class QNetworkxConfig(dict):
 
 
 graph_config= QNetworkxConfig(QNetworkxConfig_default)
-print graph_config.NodeConfig.NodeColors.Default.Edge.PenColor
-
