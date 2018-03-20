@@ -842,8 +842,10 @@ class QNetworkxWidget(QGraphicsView):
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
+
         action2 = QAction("Set mass center", self)
-        action2.triggered.connect(self.set_mass_center)
+        action2.triggered.connect(self.set_mass_center)       
+
         self.node_groups_menu = self.menu.addMenu("Add to group...")
         self.new_group_action = QAction("Add new group...", self)
         self.new_group_action.triggered.connect(self.create_new_node_group)
@@ -966,12 +968,30 @@ class QNetworkxWidget(QGraphicsView):
             node_label = unicode(label.toUtf8(), encoding="UTF-8")
         else:
             node_label = unicode(str(label), encoding="UTF-8")
+        
         if label not in self.nx_graph.nodes():
             node = QNodeGraphicItem(self, node_label)
             self.nx_graph.add_node(node_label, item=node)
             self.scene.addItem(node)
             if position and isinstance(position, tuple):
                 node.setPos(QPointF(position[0], position[1]))
+        else:
+            # TODO: raise exception
+            pass
+
+    def remove_node(self, label=None):
+        if isinstance(label, QString):
+            node_label = unicode(label.toUtf8(), encoding="UTF-8")
+        else:
+            node_label = unicode(str(label), encoding="UTF-8")
+
+        if label in self.nx_graph.nodes():
+            node_item = self.nx_graph.node[node_label]['item']
+            for edge in self.nx_graph.edges(node_label):
+                edge_item = self.nx_graph[edge[0]][edge[1]]['item']
+                self.scene.removeItem(edge_item)    
+            self.scene.removeItem(node_item)
+            self.nx_graph.remove_node(node_label)
         else:
             # TODO: raise exception
             pass
@@ -1020,7 +1040,7 @@ class QNetworkxWidget(QGraphicsView):
                                 label_visible=label_visible)
         edge.adjust()
         if edge and edge.label.toPlainText() not in self.nx_graph.edges():
-            self.nx_graph.add_edge(node1_label, node2_label, item = edge)
+            self.nx_graph.add_edge(node1_label, node2_label, item=edge)
             self.scene.addItem(edge)
             # self.scene.addItem(edge.label)
 
