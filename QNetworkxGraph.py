@@ -54,8 +54,8 @@ current_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(m
 file_handler.setFormatter(current_format)
 console_handler.setFormatter(current_format)
 # add the handlers to the logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# logger.addHandler(file_handler)
+# logger.addHandler(console_handler)
 logger.info('Created main logger')
 
 from QNetworkxStylesManager import QNetworkxStylesManager
@@ -71,7 +71,7 @@ class QEdgeGraphicItem(QGraphicsItem):
 
     def __init__(self, first_node, second_node, label=None, directed=False, label_visible=True):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
-        self._logger.setLevel(logging.DEBUG)
+        self._logger.setLevel(logging.CRITICAL)
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
@@ -557,7 +557,7 @@ class QNodeGraphicItem(QGraphicsItem):
 
     def __init__(self, graph_widget, label):
         self._logger = logging.getLogger("QNetworkxGraph.QNodeGraphicItem")
-        self._logger.setLevel(logging.DEBUG)
+        self._logger.setLevel(logging.CRITICAL)
         super(QNodeGraphicItem, self).__init__()
 
         self.graph = graph_widget
@@ -842,8 +842,10 @@ class QNetworkxWidget(QGraphicsView):
         action1 = QAction("Panning mode", self)
         action1.triggered.connect(self.set_panning_mode)
         action1.setCheckable(True)
+
         action2 = QAction("Set mass center", self)
-        action2.triggered.connect(self.set_mass_center)
+        action2.triggered.connect(self.set_mass_center)       
+
         self.node_groups_menu = self.menu.addMenu("Add to group...")
         self.new_group_action = QAction("Add new group...", self)
         self.new_group_action.triggered.connect(self.create_new_node_group)
@@ -857,6 +859,21 @@ class QNetworkxWidget(QGraphicsView):
         if self.selected_nodes():
             for node_label in self.selected_nodes():
                 self.nx_graph.node[node_label]['item'].set_mass_center(self.last_menu_position)
+
+    def center_on(self, position):
+        temp = self.panning_mode
+
+        print position
+        print [self.scene.width(), self.scene.height()]
+
+        position[0]-= self.scene.width()/2
+        position[1]-= self.scene.height()/2
+
+        self.set_panning_mode(True)
+        self.horizontalScrollBar().setValue(position[0]) 
+        self.verticalScrollBar().setValue(position[1])
+
+        self.set_panning_mode(temp)
 
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
@@ -937,6 +954,9 @@ class QNetworkxWidget(QGraphicsView):
     def get_selected_nodes(self):
         return self.selected_nodes()
 
+    def clear_selection(self):
+        self.scene.clearSelection()
+
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
         if self.panning_mode:
@@ -966,12 +986,30 @@ class QNetworkxWidget(QGraphicsView):
             node_label = unicode(label.toUtf8(), encoding="UTF-8")
         else:
             node_label = unicode(str(label), encoding="UTF-8")
+        
         if label not in self.nx_graph.nodes():
             node = QNodeGraphicItem(self, node_label)
             self.nx_graph.add_node(node_label, item=node)
             self.scene.addItem(node)
             if position and isinstance(position, tuple):
                 node.setPos(QPointF(position[0], position[1]))
+        else:
+            # TODO: raise exception
+            pass
+
+    def remove_node(self, label=None):
+        if isinstance(label, QString):
+            node_label = unicode(label.toUtf8(), encoding="UTF-8")
+        else:
+            node_label = unicode(str(label), encoding="UTF-8")
+
+        if label in self.nx_graph.nodes():
+            node_item = self.nx_graph.node[node_label]['item']
+            for edge in self.nx_graph.edges(node_label):
+                edge_item = self.nx_graph[edge[0]][edge[1]]['item']
+                self.scene.removeItem(edge_item)    
+            self.scene.removeItem(node_item)
+            self.nx_graph.remove_node(node_label)
         else:
             # TODO: raise exception
             pass
@@ -1020,7 +1058,7 @@ class QNetworkxWidget(QGraphicsView):
                                 label_visible=label_visible)
         edge.adjust()
         if edge and edge.label.toPlainText() not in self.nx_graph.edges():
-            self.nx_graph.add_edge(node1_label, node2_label, item = edge)
+            self.nx_graph.add_edge(node1_label, node2_label, item=edge)
             self.scene.addItem(edge)
             # self.scene.addItem(edge.label)
 
