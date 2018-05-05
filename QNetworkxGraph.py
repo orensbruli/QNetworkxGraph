@@ -54,8 +54,8 @@ current_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(m
 file_handler.setFormatter(current_format)
 console_handler.setFormatter(current_format)
 # add the handlers to the logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# logger.addHandler(file_handler)
+# logger.addHandler(console_handler)
 logger.info('Created main logger')
 
 from QNetworkxStylesManager import QNetworkxStylesManager
@@ -71,7 +71,7 @@ class QEdgeGraphicItem(QGraphicsItem):
 
     def __init__(self, first_node, second_node, label=None, directed=False, label_visible=True):
         self._logger = logging.getLogger("QNetworkxGraph.QEdgeGraphicItem")
-        self._logger.setLevel(logging.DEBUG)
+        self._logger.setLevel(logging.CRITICAL)
         super(QEdgeGraphicItem, self).__init__()
 
         self.arrowSize = 10.0
@@ -557,7 +557,7 @@ class QNodeGraphicItem(QGraphicsItem):
 
     def __init__(self, graph_widget, label):
         self._logger = logging.getLogger("QNetworkxGraph.QNodeGraphicItem")
-        self._logger.setLevel(logging.DEBUG)
+        self._logger.setLevel(logging.CRITICAL)
         super(QNodeGraphicItem, self).__init__()
 
         self.graph = graph_widget
@@ -860,6 +860,21 @@ class QNetworkxWidget(QGraphicsView):
             for node_label in self.selected_nodes():
                 self.nx_graph.node[node_label]['item'].set_mass_center(self.last_menu_position)
 
+    def center_on(self, position):
+        temp = self.panning_mode
+
+        print position
+        print [self.scene.width(), self.scene.height()]
+
+        position[0]-= self.scene.width()/2
+        position[1]-= self.scene.height()/2
+
+        self.set_panning_mode(True)
+        self.horizontalScrollBar().setValue(position[0]) 
+        self.verticalScrollBar().setValue(position[1])
+
+        self.set_panning_mode(temp)
+
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
             text, result = QInputDialog.getText(self, u"New node group", u"Node group name:", QLineEdit.Normal, "...")
@@ -938,6 +953,9 @@ class QNetworkxWidget(QGraphicsView):
 
     def get_selected_nodes(self):
         return self.selected_nodes()
+
+    def clear_selection(self):
+        self.scene.clearSelection()
 
     def set_panning_mode(self, mode=False):
         self.panning_mode = mode
