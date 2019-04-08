@@ -1355,6 +1355,9 @@ class QNetworkxController(object):
     def print_something(self):
         print "THAT THING"
 
+    def clear(self):
+        self.delete_graph()
+
     def delete_graph(self):
         self.graph_widget.delete_graph()
         self.graph = None
