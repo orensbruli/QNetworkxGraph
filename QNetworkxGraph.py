@@ -31,13 +31,29 @@ from random import uniform
 
 import networkx as nx
 import networkx.drawing.layout as ly
-from PyQt4.QtCore import QLineF, QPointF, QRectF, QSizeF, QString, QTime, Qt, pyqtSignal, qAbs, qsrand
-from PyQt4.QtGui import QAction, QApplication, QBrush, QCheckBox, QColor, QComboBox, QFont, QFontMetrics, QGraphicsItem, \
-    QGraphicsScene, QGraphicsTextItem, QGraphicsView, QHBoxLayout, QInputDialog, QLineEdit, QLinearGradient, \
-    QMainWindow, QMenu, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QRadialGradient, QSlider, QStyle, \
-    QTransform, QVBoxLayout, QWidget
+
+
+
 from enum import Enum
 from scipy.interpolate import interp1d
+try:
+    from PySide2.QtCore import QPointF, Qt, QLineF, QRectF, QSizeF, qAbs, qsrand, QTime, Signal
+    from PySide2.QtGui import QPen, QBrush, QPolygonF, QPainterPath, QTransform, QPainterPathStroker, QRadialGradient, \
+    QFont, QFontMetrics, QColor, QPainter, QLinearGradient, QMouseEvent
+    from PySide2.QtWidgets import QGraphicsItem, QGraphicsTextItem, QMenu, QAction, QStyle, QGraphicsView, \
+        QGraphicsScene, \
+        QInputDialog, QLineEdit, QMainWindow, QVBoxLayout, QWidget, QHBoxLayout, QSlider, QCheckBox, QComboBox, \
+        QApplication
+    PYQT4 = False
+except Exception as e:
+    from PyQt4.QtCore import QLineF, QPointF, QRectF, QSizeF, QString, QTime, Qt, pyqtSignal, qAbs, qsrand
+    from PyQt4.QtGui import QAction, QApplication, QBrush, QCheckBox, QColor, QComboBox, QFont, QFontMetrics, \
+        QGraphicsItem, \
+        QGraphicsScene, QGraphicsTextItem, QGraphicsView, QHBoxLayout, QInputDialog, QLineEdit, QLinearGradient, \
+        QMainWindow, QMenu, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QRadialGradient, QSlider, \
+        QStyle, \
+        QTransform, QVBoxLayout, QWidget
+    PYQT4 = True
 
 from ParticlesBackgroundDecoration import ParticlesBackgroundDecoration
 
@@ -724,7 +740,7 @@ class QNodeGraphicItem(QGraphicsItem):
         font = QFont()
         font.setFamily(font.defaultFamily())
         fm = QFontMetrics(font)
-        label_width = fm.width(QString(str(self.label.toPlainText()))) + self.border_width * 2 + 40
+        label_width = fm.width(str(self.label.toPlainText())) + self.border_width * 2 + 40
         return label_width
 
     def itemChange(self, change, value):
@@ -797,7 +813,7 @@ class QNodeGraphicItem(QGraphicsItem):
 
 
 class QNetworkxWidget(QGraphicsView):
-    node_selection_changed = pyqtSignal(list)
+    node_selection_changed = Signal(list)
 
     def __init__(self, directed=False, parent=None):
         super(QNetworkxWidget, self).__init__(parent)
@@ -844,7 +860,11 @@ class QNetworkxWidget(QGraphicsView):
         action1.setCheckable(True)
 
         action2 = QAction("Set mass center", self)
-        action2.triggered.connect(self.set_mass_center)       
+        action2.triggered.connect(self.set_mass_center)
+
+        action3 = QAction("Animation", self)
+        action3.setCheckable(True)
+        action3.triggered.connect(self.animate_nodes)
 
         self.node_groups_menu = self.menu.addMenu("Add to group...")
         self.new_group_action = QAction("Add new group...", self)
@@ -853,6 +873,7 @@ class QNetworkxWidget(QGraphicsView):
         self.node_groups_menu.addSeparator()
         self.menu.addAction(action1)
         self.menu.addAction(action2)
+        self.menu.addAction(action3)
         self.menu.addSeparator()
 
     def set_mass_center(self):
@@ -878,8 +899,11 @@ class QNetworkxWidget(QGraphicsView):
     def create_new_node_group(self, node_group_name=None):
         if not node_group_name:
             text, result = QInputDialog.getText(self, u"New node group", u"Node group name:", QLineEdit.Normal, "...")
-            if (result and not text.isEmpty()):
-                node_group_name = unicode(text.toUtf8(), encoding="UTF-8")
+            if (result and ((PYQT4 and not text.isEmpty()) or len(text)>0)):
+                if PYQT4:
+                    node_group_name = unicode(text.toUtf8(), encoding="UTF-8")
+                else:
+                    node_group_name = unicode(text)
             else:
                 return
         nodes = self.selected_nodes()
@@ -948,7 +972,10 @@ class QNetworkxWidget(QGraphicsView):
         selected_nodes = []
         for item in changed:
             if isinstance(item, QNodeGraphicItem):
-                selected_nodes.append(unicode(item.label.toPlainText().toUtf8(), encoding="UTF-8"))
+                if PYQT4:
+                    selected_nodes.append(unicode(item.label.toPlainText().toUtf8(), encoding="UTF-8"))
+                else:
+                    selected_nodes.append(unicode(item.label.toPlainText()))
         return selected_nodes
 
     def get_selected_nodes(self):
@@ -982,8 +1009,8 @@ class QNetworkxWidget(QGraphicsView):
     def add_node(self, label=None, position=None):
         if label is None:
             node_label = u"Node %s" % len(self.nx_graph.nodes())
-        elif isinstance(label, QString):
-            node_label = unicode(label.toUtf8(), encoding="UTF-8")
+        elif PYQT4 and isinstance(label, QString):
+             node_label = unicode(label.toUtf8(), encoding="UTF-8")
         else:
             node_label = unicode(str(label), encoding="UTF-8")
         
@@ -998,7 +1025,7 @@ class QNetworkxWidget(QGraphicsView):
             pass
 
     def remove_node(self, label=None):
-        if isinstance(label, QString):
+        if PYQT4 and isinstance(label, QString):
             node_label = unicode(label.toUtf8(), encoding="UTF-8")
         else:
             node_label = unicode(str(label), encoding="UTF-8")
@@ -1037,7 +1064,7 @@ class QNetworkxWidget(QGraphicsView):
             elif isinstance(first_node, QNodeGraphicItem):
                 node1 = first_node
                 node1_label = unicode(node1.label.toPlainText().toUtf8(), encoding="UTF-8")
-            elif isinstance(first_node, QString):
+            elif PYQT4 and isinstance(first_node, QString):
                 node1_label = unicode(first_node.toUtf8(), encoding="UTF-8")
                 node1 = self.nx_graph.node[node1_label]['item']
             else:
@@ -1048,7 +1075,7 @@ class QNetworkxWidget(QGraphicsView):
             elif isinstance(second_node, QNodeGraphicItem):
                 node2 = second_node
                 node2_label = unicode(node2.label.toPlainText().toUtf8(), encoding="UTF-8")
-            elif isinstance(second_node, QString):
+            elif PYQT4 and isinstance(second_node, QString):
                 node2_label = unicode(second_node.toUtf8(), encoding="UTF-8")
                 node2 = self.nx_graph.node[node2_label]['item']
             else:
@@ -1083,22 +1110,24 @@ class QNetworkxWidget(QGraphicsView):
             QGraphicsView.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
-        if self.panning_mode:
-            if self.dragMode() == QGraphicsView.ScrollHandDrag:
-                self.current_position = event.pos()
-                dx = self.current_position.x() - self.last_position.x()
-                dy = self.current_position.y() - self.last_position.y()
-                self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
-                self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
-                self.last_position = self.current_position
+        if isinstance(event, QMouseEvent):
+            if self.panning_mode:
+                if self.dragMode() == QGraphicsView.ScrollHandDrag:
+                    self.current_position = event.pos()
+                    dx = self.current_position.x() - self.last_position.x()
+                    dy = self.current_position.y() - self.last_position.y()
+                    self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
+                    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
+                    self.last_position = self.current_position
 
-        QGraphicsView.mouseMoveEvent(self, event)
+            super(QNetworkxWidget, self).mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if self.panning_mode:
-            self.setDragMode(QGraphicsView.RubberBandDrag)
-
-        QGraphicsView.mouseReleaseEvent(self, event)
+        if isinstance(event, QMouseEvent):
+            if self.panning_mode:
+                self.setDragMode(QGraphicsView.RubberBandDrag)
+    
+            super(QNetworkxWidget, self).mouseReleaseEvent(event)
 
     def timerEvent(self, event):
         items_moved = False
@@ -1151,7 +1180,10 @@ class QNetworkxWidget(QGraphicsView):
                                    scene_rect.bottomRight())
         gradient.setColorAt(0, Qt.black)
         gradient.setColorAt(1, Qt.darkGray)
-        painter.fillRect(rect.intersect(scene_rect), QBrush(self.background_color))
+        if PYQT4:
+            painter.fillRect(rect.intersect(scene_rect), QBrush(self.background_color))
+        else:
+            painter.fillRect(rect.intersected(scene_rect), QBrush(self.background_color))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(scene_rect)
         self.scene.addEllipse(-10, -10, 20, 20,
