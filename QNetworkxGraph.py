@@ -1373,9 +1373,9 @@ class QNetworkxController(object):
 
         if not initial_pos:
             initial_pos = nx.circular_layout(self.graph)
-
-        initial_pos = self.graph_widget.networkx_positions_to_pixels(initial_pos)
-        self.graph_widget.set_node_positions(initial_pos)
+        if len(self.graph.nodes())>0:
+            initial_pos = self.graph_widget.networkx_positions_to_pixels(initial_pos)
+            self.graph_widget.set_node_positions(initial_pos)
 
     def set_elements_context_menus(self, options_dict, elements):
         self.graph_widget.add_context_menu(options_dict, elements)
