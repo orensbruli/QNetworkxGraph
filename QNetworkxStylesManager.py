@@ -3,8 +3,10 @@
 import json
 import os
 
-from PyQt4.QtGui import QColor
-
+try:
+    from PySide2.QtGui import QColor
+except Exception as e:
+    from PyQt4.QtGui import QColor
 
 class QtColorsDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
