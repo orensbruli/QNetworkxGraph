@@ -1347,8 +1347,11 @@ class QNetworkxWidget(QGraphicsView):
 #############################################################
 
 class QNetworkxController(object):
-    def __init__(self):
-        self.graph_widget = QNetworkxWidget(directed=True)
+    def __init__(self, view_widget = None):
+        if view_widget:
+            self.graph_widget = view_widget
+        else:
+            self.graph_widget = QNetworkxWidget(directed=True)
         self.graph = nx.Graph()
         # self.node_positions = self.construct_the_graph()
 
