@@ -1,0 +1,2 @@
+recursive-include styles *.json
+prune .idea
